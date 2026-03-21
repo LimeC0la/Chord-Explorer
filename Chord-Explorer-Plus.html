@@ -1,0 +1,2611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chord Explorer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;1,400&family=Nunito:wght@400;500;600;700&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Nunito', sans-serif;
+    background: #faf8f5;
+    color: #3a3530;
+    min-height: 100vh;
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  .page { max-width: 620px; margin: 0 auto; }
+
+  h1 {
+    font-family: 'Lora', serif;
+    font-size: 1.65rem;
+    text-align: center;
+    color: #2a2520;
+    margin-bottom: 0.25rem;
+  }
+
+  .tagline {
+    text-align: center;
+    font-size: 0.84rem;
+    color: #9a958e;
+    margin-bottom: 2rem;
+  }
+
+  /* ---- Picker ---- */
+  .picker-section {
+    background: #fff;
+    border: 1.5px solid #e8e4de;
+    border-radius: 14px;
+    padding: 1.2rem;
+    margin-bottom: 1.4rem;
+  }
+
+  .picker-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #9a958e;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 0.55rem;
+  }
+
+  .pill-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-bottom: 1rem;
+  }
+
+  .pill {
+    padding: 0.38rem 0.72rem;
+    border-radius: 6px;
+    border: 1.5px solid #e0dbd4;
+    background: #faf8f5;
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #6a6560;
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+  }
+
+  .pill:hover { border-color: #c5b8d8; color: #5a4878; }
+
+  .pill.active {
+    background: #6a50a0;
+    border-color: #6a50a0;
+    color: #fff;
+  }
+
+  .pill.black-note {
+    background: #2a2a2e;
+    border-color: #2a2a2e;
+    color: #c0bab5;
+  }
+
+  .pill.black-note:hover { border-color: #8a70b8; color: #d8d0e8; }
+
+  .pill.black-note.active {
+    background: #6a50a0;
+    border-color: #6a50a0;
+    color: #fff;
+  }
+
+  /* ---- Result Card ---- */
+  .result-card {
+    background: #fff;
+    border: 1.5px solid #e8e4de;
+    border-radius: 14px;
+    padding: 1.3rem;
+    margin-bottom: 1rem;
+  }
+
+  .result-card.error-card {
+    border-color: #e8c8c0;
+    background: #fef9f7;
+  }
+
+  .chord-title {
+    font-family: 'Lora', serif;
+    font-size: 1.45rem;
+    font-weight: 600;
+    color: #2a2520;
+    margin-bottom: 0.1rem;
+  }
+
+  .chord-formula {
+    font-size: 0.8rem;
+    color: #8a8580;
+    margin-bottom: 0.15rem;
+  }
+
+  .chord-notes-text {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #5a4878;
+    margin-bottom: 1rem;
+    letter-spacing: 0.02em;
+  }
+
+  .interval-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-bottom: 1rem;
+  }
+
+  .interval-tag {
+    background: #f3eef8;
+    color: #6a50a0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 0.22rem 0.55rem;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+  }
+
+  .interval-tag.root-tag {
+    background: #6a50a0;
+    color: #fff;
+  }
+
+  /* ---- Piano ---- */
+  .piano-container {
+    position: relative;
+    height: 100px;
+    margin: 0 auto 0.3rem;
+    max-width: 100%;
+  }
+
+  .piano-container .wk {
+    position: absolute;
+    bottom: 0;
+    height: 100%;
+    background: linear-gradient(180deg, #f0ece6 0%, #e4e0d8 100%);
+    border: 1.2px solid #d0cbc2;
+    border-radius: 0 0 4px 4px;
+    z-index: 0;
+    transition: background 0.18s, border-color 0.18s;
+  }
+
+  .piano-container .wk.on {
+    background: linear-gradient(180deg, #d4c4ee 0%, #b8a0dd 100%);
+    border-color: #a088cc;
+  }
+
+  .piano-container .wk.on-root {
+    background: linear-gradient(180deg, #6a50a0 0%, #5a4090 100%);
+    border-color: #4a3080;
+  }
+
+
+  .piano-container .bk {
+    position: absolute;
+    height: 62%;
+    background: linear-gradient(180deg, #38383c 0%, #22222a 100%);
+    border-radius: 0 0 3px 3px;
+    z-index: 1;
+    transition: background 0.18s;
+  }
+
+  .piano-container .bk.on {
+    background: linear-gradient(180deg, #9a80cc 0%, #7a60b8 100%);
+  }
+
+  .piano-container .bk.on-root {
+    background: linear-gradient(180deg, #6a50a0 0%, #4a3080 100%);
+  }
+
+
+  .key-note-label {
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.5rem;
+    font-weight: 700;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 2;
+  }
+
+  .wk .key-note-label { color: #a098a8; }
+  .wk.on .key-note-label { color: #4a3070; }
+  .wk.on-root .key-note-label { color: #e8e0f8; }
+  .bk .key-note-label { color: #68686c; font-size: 0.46rem; bottom: 3px; }
+  .bk.on .key-note-label { color: #e8e0f8; }
+  .bk.on-root .key-note-label { color: #e8e0f8; }
+
+  .piano-octave-divider {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(120, 90, 180, 0.2);
+    z-index: 5;
+  }
+
+  /* ---- Inversions ---- */
+  .inversions-section {
+    margin-top: 1.4rem;
+  }
+
+  .inv-title {
+    font-family: 'Lora', serif;
+    font-size: 1.1rem;
+    color: #2a2520;
+    margin-bottom: 0.15rem;
+  }
+
+  .inv-sub {
+    font-size: 0.76rem;
+    color: #9a958e;
+    margin-bottom: 1rem;
+  }
+
+  .inv-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+
+  .inv-card {
+    background: #faf8f5;
+    border: 1.5px solid #e8e4de;
+    border-radius: 10px;
+    padding: 0.9rem 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .inv-card:hover { border-color: #c5b8d8; }
+  .inv-card.active { border-color: #b8a0d8; background: #fcfaff; }
+
+  .inv-name {
+    font-weight: 700;
+    font-size: 0.88rem;
+    color: #3a3530;
+  }
+
+  .inv-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #9a958e;
+    background: #edeae5;
+    padding: 0.15rem 0.45rem;
+    border-radius: 3px;
+  }
+
+  .inv-card.active .inv-badge {
+    background: #e8dff5;
+    color: #6a50a0;
+  }
+
+  .inv-notes {
+    font-size: 0.82rem;
+    color: #6a6560;
+    letter-spacing: 0.02em;
+  }
+
+  .inv-card.active .inv-notes { color: #5a4878; font-weight: 600; }
+
+  /* ---- Difficulty Badge ---- */
+  .diff-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    padding: 0.18rem 0.5rem;
+    border-radius: 4px;
+    margin-left: auto;
+    letter-spacing: 0.02em;
+  }
+
+  .diff-easy { background: #e6f5ec; color: #2a7a48; }
+  .diff-medium { background: #fef3e0; color: #9a7020; }
+  .diff-hard { background: #fde8e8; color: #a04040; }
+  .diff-very-hard { background: #f0e0e8; color: #803050; }
+
+  .diff-dots {
+    display: inline-flex;
+    gap: 2px;
+  }
+
+  .diff-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.3;
+  }
+
+  .diff-dot.filled { opacity: 1; }
+
+  .inv-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.2rem;
+    flex-wrap: wrap;
+  }
+
+  .inv-tip {
+    font-size: 0.68rem;
+    color: #9a958e;
+    margin-top: 0.2rem;
+    font-style: italic;
+  }
+
+  .inv-card.active .inv-tip { color: #8a80a8; }
+
+  /* ---- Error ---- */
+  .error-msg {
+    font-size: 0.88rem;
+    color: #a05040;
+    line-height: 1.5;
+  }
+
+  /* ---- Callout ---- */
+  .callout {
+    background: #f3eef8;
+    border-left: 3px solid #b8a0d8;
+    border-radius: 0 10px 10px 0;
+    padding: 0.75rem 0.9rem;
+    font-size: 0.78rem;
+    color: #5a4878;
+    line-height: 1.5;
+    margin-top: 0.8rem;
+  }
+
+  .callout strong { font-weight: 700; }
+
+  .empty-state {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: #b0aaa2;
+    font-size: 0.9rem;
+  }
+
+  .empty-state .arrow { font-size: 1.6rem; margin-bottom: 0.3rem; display: block; }
+
+  /* ---- Audio unlock overlay ---- */
+  .audio-unlock {
+    position: fixed;
+    inset: 0;
+    background: rgba(13, 13, 15, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    transition: opacity 0.4s ease;
+    font-family: 'Nunito', sans-serif;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
+  .audio-unlock.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .audio-unlock-card {
+    background: #fff;
+    border-radius: 18px;
+    padding: 2rem 2.2rem;
+    text-align: center;
+    max-width: 300px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  }
+
+  .audio-unlock-icon {
+    font-size: 2.4rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .audio-unlock-title {
+    font-family: 'Lora', serif;
+    font-size: 1.15rem;
+    color: #2a2520;
+    margin-bottom: 0.3rem;
+  }
+
+  .audio-unlock-sub {
+    font-size: 0.78rem;
+    color: #9a958e;
+    margin-bottom: 1.2rem;
+    line-height: 1.4;
+  }
+
+  .audio-unlock-btn {
+    display: inline-block;
+    background: #6a50a0;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 0.7rem 2rem;
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+    -webkit-tap-highlight-color: rgba(106, 80, 160, 0.3);
+  }
+
+  .audio-unlock-btn:hover { background: #5a4090; }
+  .audio-unlock-btn:active { transform: scale(0.97); }
+
+  /* ---- Audio btn ---- */
+  .play-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: #6a50a0;
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    padding: 0.45rem 0.9rem;
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-bottom: 1rem;
+  }
+
+  .play-btn:hover { background: #5a4090; }
+  .play-btn svg { width: 14px; height: 14px; }
+
+  /* ---- Transpose ---- */
+  .transpose-section {
+    margin-bottom: 1rem;
+  }
+
+  .transpose-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #9a958e;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 0.45rem;
+  }
+
+  .transpose-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    align-items: center;
+  }
+
+  .transpose-group {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: #f5f2ed;
+    border: 1.5px solid #e0dbd4;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .transpose-group .t-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #7a756e;
+    padding: 0.3rem 0.5rem;
+    min-width: 38px;
+    text-align: center;
+    background: #edeae5;
+    border-right: 1px solid #e0dbd4;
+    border-left: 1px solid #e0dbd4;
+    line-height: 1;
+  }
+
+  .transpose-group .t-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 0.88rem;
+    color: #6a6560;
+    transition: all 0.15s;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .transpose-group .t-btn:hover {
+    background: #6a50a0;
+    color: #fff;
+  }
+
+  .transpose-group .t-btn:first-child { border-radius: 6px 0 0 6px; }
+  .transpose-group .t-btn:last-child { border-radius: 0 6px 6px 0; }
+
+  .transpose-hint {
+    font-size: 0.68rem;
+    color: #b0aaa2;
+    margin-top: 0.35rem;
+  }
+
+  /* ---- Sound Settings ---- */
+  .sound-panel {
+    background: #fff;
+    border: 1.5px solid #e8e4de;
+    border-radius: 14px;
+    margin-bottom: 1.4rem;
+    overflow: hidden;
+  }
+
+  .sound-panel-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1.2rem;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+  }
+
+  .sound-panel-toggle:hover { background: #faf8f5; }
+
+  .sound-panel-toggle .sp-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #5a5550;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .sound-panel-toggle .sp-title .sp-icon {
+    font-size: 1rem;
+  }
+
+  .sound-panel-toggle .sp-chevron {
+    font-size: 0.7rem;
+    color: #b0aaa2;
+    transition: transform 0.25s ease;
+  }
+
+  .sound-panel.open .sp-chevron {
+    transform: rotate(180deg);
+  }
+
+  .sound-panel-body {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.35s ease, padding 0.35s ease;
+    padding: 0 1.2rem;
+  }
+
+  .sound-panel.open .sound-panel-body {
+    max-height: 1200px;
+    padding: 0 1.2rem 1.2rem;
+  }
+
+  .sp-group {
+    margin-bottom: 0.9rem;
+  }
+
+  .sp-group:last-child { margin-bottom: 0; }
+
+  .sp-group-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.3rem;
+  }
+
+  .sp-group-label .sp-name {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #6a6560;
+  }
+
+  .sp-group-label .sp-value {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: #9a958e;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .sp-desc {
+    font-size: 0.68rem;
+    color: #b0aaa2;
+    margin-bottom: 0.35rem;
+  }
+
+  .sp-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: #edeae5;
+    outline: none;
+    cursor: pointer;
+    /* Allow page scrolling over the track — only the thumb captures */
+    touch-action: pan-y;
+    pointer-events: none;
+  }
+
+  /* Re-enable pointer events only on the thumb so you must grab the handle */
+  .sp-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #6a50a0;
+    border: 3px solid #fff;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+    cursor: pointer;
+    transition: transform 0.1s;
+    pointer-events: auto;
+    touch-action: none;
+  }
+
+  .sp-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+  }
+
+  .sp-slider::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #6a50a0;
+    border: 3px solid #fff;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.2);
+    cursor: pointer;
+    pointer-events: auto;
+    touch-action: none;
+  }
+
+  /* Make the track clickable on desktop but not steal mobile scrolls */
+  @media (pointer: fine) {
+    .sp-slider {
+      pointer-events: auto;
+    }
+  }
+
+  .sp-divider {
+    border: none;
+    border-top: 1px solid #f0ece6;
+    margin: 0.7rem 0;
+  }
+
+  .sp-preset-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.6rem;
+  }
+
+  .sp-preset {
+    padding: 0.3rem 0.6rem;
+    border-radius: 5px;
+    border: 1.5px solid #e0dbd4;
+    background: #faf8f5;
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #6a6560;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .sp-preset:hover { border-color: #c5b8d8; color: #5a4878; }
+  .sp-preset.active { background: #6a50a0; border-color: #6a50a0; color: #fff; }
+
+  /* ---- Instrument Toggle ---- */
+  .inst-toggle {
+    display: flex;
+    gap: 0;
+    background: #edeae5;
+    border-radius: 8px;
+    padding: 3px;
+    margin-bottom: 1rem;
+    width: fit-content;
+  }
+
+  .inst-btn {
+    padding: 0.38rem 0.75rem;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.76rem;
+    font-weight: 600;
+    color: #8a8580;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .inst-btn.active {
+    background: #fff;
+    color: #3a3530;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  .inst-btn:hover:not(.active) { color: #5a5550; }
+
+  /* ---- Chord Diagram (Guitar/Uke) ---- */
+  .chord-diagram-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 0.5rem 0 0.2rem;
+  }
+
+  .chord-diagram-wrap svg text {
+    font-family: 'Nunito', sans-serif;
+  }
+
+  /* ---- Theme toggle ---- */
+  .theme-toggle-wrap {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 0.5rem;
+  }
+
+  .theme-toggle-btn {
+    background: none;
+    border: 1.5px solid #e0dbd4;
+    border-radius: 8px;
+    padding: 0.28rem 0.55rem;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    line-height: 1;
+  }
+
+  .theme-toggle-btn:hover { border-color: #c5b8d8; background: #f3eef8; }
+
+  /* ---- Related Chords ---- */
+  .related-section { margin-top: 1.4rem; }
+
+  .related-title {
+    font-family: 'Lora', serif;
+    font-size: 1.1rem;
+    color: #2a2520;
+    margin-bottom: 0.15rem;
+  }
+
+  .related-sub {
+    font-size: 0.76rem;
+    color: #9a958e;
+    margin-bottom: 0.75rem;
+  }
+
+  .related-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .related-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.4rem 0.65rem;
+    border-radius: 8px;
+    border: 1.5px solid #e8e4de;
+    background: #faf8f5;
+    cursor: pointer;
+    transition: all 0.18s;
+    user-select: none;
+  }
+
+  .related-chip:hover { border-color: #c5b8d8; background: #f8f5ff; }
+
+  .related-chip-name {
+    font-weight: 700;
+    font-size: 0.82rem;
+    color: #3a3530;
+    font-family: 'Lora', serif;
+  }
+
+  .related-chip-shared {
+    font-size: 0.6rem;
+    color: #b0aaa2;
+    margin-top: 0.08rem;
+    font-weight: 600;
+  }
+
+  .related-chip.high-rel { border-color: #c5b8d8; background: #f5f0fc; }
+  .related-chip.high-rel .related-chip-name { color: #6a50a0; }
+  .related-chip.high-rel .related-chip-shared { color: #9a80c8; }
+
+  /* ---- Dark Mode ---- */
+  .dark { background: #18161a; color: #e0d8f0; }
+
+  .dark h1 { color: #f0e8ff; }
+  .dark .tagline { color: #6a6080; }
+
+  .dark .picker-section {
+    background: #242028;
+    border-color: #3a3540;
+  }
+
+  .dark .picker-label { color: #7a7090; }
+
+  .dark .pill {
+    background: #2e2a38;
+    border-color: #3e3a48;
+    color: #a098b8;
+  }
+
+  .dark .pill:hover { border-color: #8a6cc8; color: #c0a8e8; }
+
+  .dark .pill.active {
+    background: #6a50a0;
+    border-color: #6a50a0;
+    color: #fff;
+  }
+
+  .dark .pill.black-note { background: #1a1820; border-color: #2e2a38; color: #7a7090; }
+  .dark .pill.black-note:hover { border-color: #8a6cc8; color: #c0a8e8; }
+  .dark .pill.black-note.active { background: #6a50a0; border-color: #6a50a0; color: #fff; }
+
+  .dark .result-card { background: #242028; border-color: #3a3540; }
+  .dark .result-card.error-card { background: #2a1e1e; border-color: #5a3030; }
+
+  .dark .chord-title { color: #f0e8ff; }
+  .dark .chord-formula { color: #6a6080; }
+  .dark .chord-notes-text { color: #a890d8; }
+
+  .dark .interval-tag { background: #2a2038; color: #a890d8; }
+  .dark .interval-tag.root-tag { background: #6a50a0; color: #fff; }
+
+  .dark .piano-container .wk {
+    background: linear-gradient(180deg, #2e2a38 0%, #242030 100%);
+    border-color: #3a3548;
+  }
+
+  .dark .piano-container .wk.on {
+    background: linear-gradient(180deg, #7a60b8 0%, #5a40a0 100%);
+    border-color: #8a70c8;
+  }
+
+  .dark .piano-container .wk.on-root {
+    background: linear-gradient(180deg, #6a50a0 0%, #4a3080 100%);
+    border-color: #5a40a0;
+  }
+
+  .dark .piano-container .bk { background: linear-gradient(180deg, #0e0c12 0%, #080810 100%); }
+  .dark .piano-container .bk.on { background: linear-gradient(180deg, #7a60b8 0%, #5a40a0 100%); }
+  .dark .piano-container .bk.on-root { background: linear-gradient(180deg, #6a50a0 0%, #4a3080 100%); }
+
+  .dark .piano-octave-divider { background: rgba(140, 110, 200, 0.15); }
+
+  .dark .callout { background: #1e1a2e; border-left-color: #7a60b8; color: #a890d8; }
+  .dark .empty-state { color: #5a5068; }
+  .dark .error-msg { color: #e08070; }
+
+  .dark .sound-panel { background: #242028; border-color: #3a3540; }
+  .dark .sound-panel-toggle:hover { background: #1e1c28; }
+  .dark .sound-panel-toggle .sp-title { color: #a098b8; }
+  .dark .sound-panel-toggle .sp-chevron { color: #6a6080; }
+  .dark .sp-name { color: #a098b8; }
+  .dark .sp-value { color: #6a6080; }
+  .dark .sp-desc { color: #5a5068; }
+  .dark .sp-slider { background: #3a3548; }
+  .dark .sp-divider { border-color: #2a2838; }
+  .dark .sp-preset { background: #2e2a38; border-color: #3e3a48; color: #8a8098; }
+  .dark .sp-preset:hover { border-color: #8a6cc8; color: #c0a8e8; }
+  .dark .sp-preset.active { background: #6a50a0; border-color: #6a50a0; color: #fff; }
+
+  .dark .inst-toggle { background: #2a2838; }
+  .dark .inst-btn { color: #6a6080; }
+  .dark .inst-btn.active { background: #3e3a50; color: #e0d8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .dark .inst-btn:hover:not(.active) { color: #b0a8c8; }
+
+  .dark .transpose-group { background: #2e2a38; border-color: #3e3a48; }
+  .dark .transpose-group .t-label { background: #242030; color: #8a8098; border-color: #3e3a48; }
+  .dark .transpose-group .t-btn { color: #8a8098; }
+  .dark .transpose-group .t-btn:hover { background: #6a50a0; color: #fff; }
+  .dark .transpose-hint { color: #5a5068; }
+
+  .dark .inv-title { color: #e0d8f0; }
+  .dark .inv-sub { color: #6a6080; }
+
+  .dark .inv-card { background: #1e1c28; border-color: #3a3540; }
+  .dark .inv-card:hover { border-color: #8a6cc8; }
+  .dark .inv-card.active { border-color: #8a6cc8; background: #262038; }
+
+  .dark .inv-name { color: #d0c8e8; }
+  .dark .inv-notes { color: #8a8098; }
+  .dark .inv-card.active .inv-notes { color: #b09ad8; font-weight: 600; }
+  .dark .inv-badge { background: #2a2838; color: #8a8098; }
+  .dark .inv-card.active .inv-badge { background: #3a2858; color: #b090e0; }
+  .dark .inv-tip { color: #6a6080; }
+  .dark .inv-card.active .inv-tip { color: #9080b8; }
+
+  .dark .related-title { color: #e0d8f0; }
+  .dark .related-sub { color: #6a6080; }
+  .dark .related-chip { background: #1e1c28; border-color: #3a3540; }
+  .dark .related-chip:hover { border-color: #8a6cc8; background: #262038; }
+  .dark .related-chip-name { color: #d0c8e8; }
+  .dark .related-chip-shared { color: #5a5068; }
+  .dark .related-chip.high-rel { border-color: #6a50a0; background: #1e1a2e; }
+  .dark .related-chip.high-rel .related-chip-name { color: #b090e0; }
+  .dark .related-chip.high-rel .related-chip-shared { color: #8070a8; }
+
+  .dark .theme-toggle-btn { border-color: #3a3548; }
+  .dark .theme-toggle-btn:hover { border-color: #8a6cc8; background: #2e2a40; }
+
+  .dark .audio-unlock { background: rgba(0,0,0,0.85); }
+  .dark .audio-unlock-card { background: #242028; }
+  .dark .audio-unlock-title { color: #f0e8ff; }
+  .dark .audio-unlock-sub { color: #7a7090; }
+
+  /* ---- Progressions ---- */
+  .progressions-section {
+    background: #fff;
+    border: 1.5px solid #e8e4de;
+    border-radius: 14px;
+    padding: 1.2rem;
+    margin-bottom: 1.4rem;
+  }
+
+  .prog-mode-toggle {
+    display: inline-flex;
+    background: #f0ece6;
+    border-radius: 6px;
+    padding: 2px;
+    margin-bottom: 0.65rem;
+    gap: 2px;
+  }
+
+  .prog-mode-btn {
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.22rem 0.6rem;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: #9a958e;
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+
+  .prog-mode-btn.active {
+    background: #fff;
+    color: #3a3530;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+
+  .prog-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #9a958e;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 0.5rem;
+  }
+
+  .prog-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+  }
+
+  .prog-pill {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0.32rem 0.55rem 0.28rem;
+    border-radius: 7px;
+    border: 1.5px solid #e0dbd4;
+    background: #faf8f5;
+    cursor: pointer;
+    transition: all 0.18s;
+    user-select: none;
+    min-width: 3rem;
+  }
+
+  .prog-pill:hover { border-color: #c5b8d8; background: #f8f5ff; }
+
+  .prog-pill.active {
+    background: #6a50a0;
+    border-color: #6a50a0;
+  }
+
+  .prog-pill.active .prog-roman,
+  .prog-pill.active .prog-chord { color: #fff; }
+
+  .prog-roman {
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #5a5550;
+    font-family: 'Lora', serif;
+  }
+
+  .prog-chord {
+    font-size: 0.62rem;
+    color: #a09a92;
+    font-family: 'Lora', serif;
+    margin-top: 0.08rem;
+  }
+
+  .dark .progressions-section { background: #242028; border-color: #3a3540; }
+  .dark .prog-mode-toggle { background: #2a2838; }
+  .dark .prog-mode-btn { color: #6a6080; }
+  .dark .prog-mode-btn.active { background: #3e3a50; color: #e0d8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+  .dark .prog-pill { background: #1e1c28; border-color: #3a3540; }
+  .dark .prog-pill:hover { border-color: #8a6cc8; background: #262038; }
+  .dark .prog-pill.active { background: #6a50a0; border-color: #6a50a0; }
+  .dark .prog-roman { color: #d0c8e8; }
+  .dark .prog-chord { color: #6a6080; }
+  .dark .prog-pill.active .prog-roman,
+  .dark .prog-pill.active .prog-chord { color: #fff; }
+  .dark .prog-label { color: #7a7090; }
+
+  /* ---- Circle of Fifths ---- */
+  .cof-wrap {
+    display: flex;
+    justify-content: center;
+    margin: 0.6rem 0 0.2rem;
+  }
+
+  .cof-node {
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+
+  .cof-node:hover { filter: brightness(1.1); }
+
+  .cof-label {
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  /* ---- Smooth Transitions ---- */
+  #result-area {
+    transition: opacity 0.14s ease, transform 0.14s ease;
+  }
+
+  #result-area.fading-out {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+</style>
+</head>
+<body>
+<div class="audio-unlock" id="audio-unlock">
+  <div class="audio-unlock-card">
+    <div class="audio-unlock-icon">🔊</div>
+    <div class="audio-unlock-title">Enable Sound</div>
+    <div class="audio-unlock-sub">Tap the button below so you can<br>hear the chords being played</div>
+    <button class="audio-unlock-btn" id="audio-unlock-btn">Turn On Sound</button>
+  </div>
+</div>
+<div class="page">
+  <div class="theme-toggle-wrap">
+    <button id="theme-toggle" class="theme-toggle-btn" onclick="toggleDark()" title="Toggle dark mode">🌙</button>
+  </div>
+  <h1>Chord Explorer</h1>
+  <p class="tagline">Pick a root and chord type — see the notes, keyboard, and inversions</p>
+
+  <!-- Root picker -->
+  <div class="picker-section">
+    <div class="picker-label">Root Note</div>
+    <div class="pill-row" id="root-picker"></div>
+
+    <div class="picker-label">Chord Type</div>
+    <div class="pill-row" id="type-picker"></div>
+
+    <!-- Circle of Fifths (rendered dynamically) -->
+    <div id="circle-of-fifths"></div>
+  </div>
+
+  <!-- Chord Progressions (rendered dynamically) -->
+  <div id="progressions-area"></div>
+
+  <!-- Sound Settings -->
+  <div class="sound-panel" id="sound-panel">
+    <div class="sound-panel-toggle" onclick="toggleSoundPanel()">
+      <span class="sp-title"><span class="sp-icon">🎛</span> Sound Settings</span>
+      <span class="sp-chevron">▼</span>
+    </div>
+    <div class="sound-panel-body">
+      <div class="sp-group">
+        <div class="sp-group-label"><span class="sp-name">Reverb</span><span class="sp-value" id="sv-reverb">25%</span></div>
+        <div class="sp-desc">Room size — dry to cathedral</div>
+        <input type="range" class="sp-slider" id="sl-reverb" min="0" max="100" value="25" oninput="onSoundChange()">
+      </div>
+      <div class="sp-group">
+        <div class="sp-group-label"><span class="sp-name">Reverb Decay</span><span class="sp-value" id="sv-decay">2.2s</span></div>
+        <div class="sp-desc">How long the room ring lasts</div>
+        <input type="range" class="sp-slider" id="sl-decay" min="1" max="80" value="22" oninput="onSoundChange()">
+      </div>
+      <hr class="sp-divider">
+      <div class="sp-group">
+        <div class="sp-group-label"><span class="sp-name">Attack</span><span class="sp-value" id="sv-attack">20ms</span></div>
+        <div class="sp-desc">How quickly notes start — percussive to soft pad</div>
+        <input type="range" class="sp-slider" id="sl-attack" min="1" max="100" value="2" oninput="onSoundChange()">
+      </div>
+      <div class="sp-group">
+        <div class="sp-group-label"><span class="sp-name">Sustain</span><span class="sp-value" id="sv-sustain">20%</span></div>
+        <div class="sp-desc">How long notes ring — controls chord body on strings</div>
+        <input type="range" class="sp-slider" id="sl-sustain" min="0" max="100" value="20" oninput="onSoundChange()">
+      </div>
+      <div class="sp-group">
+        <div class="sp-group-label"><span class="sp-name">Release</span><span class="sp-value" id="sv-release">2.0s</span></div>
+        <div class="sp-desc">Fade-out time after note ends</div>
+        <input type="range" class="sp-slider" id="sl-release" min="1" max="60" value="20" oninput="onSoundChange()">
+      </div>
+      <hr class="sp-divider">
+      <div class="sp-group">
+        <div class="sp-group-label"><span class="sp-name">Brightness</span><span class="sp-value" id="sv-bright">50%</span></div>
+        <div class="sp-desc">FM hammer ping on piano, pick attack on strings</div>
+        <input type="range" class="sp-slider" id="sl-bright" min="0" max="100" value="50" oninput="onSoundChange()">
+      </div>
+      <div class="sp-group">
+        <div class="sp-group-label"><span class="sp-name">Warmth</span><span class="sp-value" id="sv-warm">50%</span></div>
+        <div class="sp-desc">Oscillator spread &amp; chorus depth — more warmth = lusher, wider sound</div>
+        <input type="range" class="sp-slider" id="sl-warm" min="0" max="100" value="50" oninput="onSoundChange()">
+      </div>
+      <div class="sp-group">
+        <div class="sp-group-label"><span class="sp-name">Sub Bass</span><span class="sp-value" id="sv-sub">40%</span></div>
+        <div class="sp-desc">Low-end sine foundation</div>
+        <input type="range" class="sp-slider" id="sl-sub" min="0" max="100" value="40" oninput="onSoundChange()">
+      </div>
+      <hr class="sp-divider">
+      <div class="sp-group-label"><span class="sp-name">Presets</span></div>
+      <div class="sp-preset-row" id="preset-buttons">
+        <!-- Built dynamically by buildPresetButtons() -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div id="result-area">
+    <div class="empty-state">
+      <span class="arrow">↑</span>
+      Pick a root note and chord type to get started
+    </div>
+  </div>
+</div>
+
+<!-- Pre-patch AudioWorklet.addModule before Tone.js loads.
+     Under file://, Chrome blocks blob: URLs from null origins, so Tone.js's
+     internal worklet registrations always fail. The audio still works because
+     Tone.js degrades gracefully — but the unhandled promise rejections are
+     noisy. This patch converts those silent failures into silent successes. -->
+<script>
+if ('AudioWorklet' in window) {
+  const _addModule = AudioWorklet.prototype.addModule;
+  AudioWorklet.prototype.addModule = function(url, options) {
+    return _addModule.call(this, url, options).catch(function() {
+      /* swallow blob:null worklet loading errors under file:// */
+    });
+  };
+}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+<script>
+// ===== MUSIC THEORY ENGINE =====
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+// Enharmonic display names (prefer flats for certain roots)
+const FLAT_MAP = { 'C#':'D♭', 'D#':'E♭', 'F#':'G♭', 'G#':'A♭', 'A#':'B♭' };
+const SHARP_DISPLAY = { 'C#':'C♯', 'D#':'D♯', 'F#':'F♯', 'G#':'G♯', 'A#':'A♯' };
+
+// Roots that prefer flat spelling
+const FLAT_ROOTS = new Set(['F','Bb','Eb','Ab','Db','Gb','D#','G#','A#','C#','F#']);
+
+const ROOTS = [
+  { name: 'C', semi: 0, black: false },
+  { name: 'C#', semi: 1, black: true, flatName: 'D♭' },
+  { name: 'D', semi: 2, black: false },
+  { name: 'D#', semi: 3, black: true, flatName: 'E♭' },
+  { name: 'E', semi: 4, black: false },
+  { name: 'F', semi: 5, black: false },
+  { name: 'F#', semi: 6, black: true, flatName: 'G♭' },
+  { name: 'G', semi: 7, black: false },
+  { name: 'G#', semi: 8, black: true, flatName: 'A♭' },
+  { name: 'A', semi: 9, black: false },
+  { name: 'A#', semi: 10, black: true, flatName: 'B♭' },
+  { name: 'B', semi: 11, black: false },
+];
+
+// Chord definitions: [semitones from root], formula name, interval names
+const CHORD_TYPES = [
+  { id: 'maj',     label: 'Major',       intervals: [0,4,7],      formula: 'R – M3 – P5',      intervalNames: ['Root','Major 3rd','Perfect 5th'] },
+  { id: 'min',     label: 'Minor',       intervals: [0,3,7],      formula: 'R – m3 – P5',      intervalNames: ['Root','Minor 3rd','Perfect 5th'] },
+  { id: 'dim',     label: 'Dim',         intervals: [0,3,6],      formula: 'R – m3 – dim5',    intervalNames: ['Root','Minor 3rd','Dim 5th'] },
+  { id: 'aug',     label: 'Aug',         intervals: [0,4,8],      formula: 'R – M3 – aug5',    intervalNames: ['Root','Major 3rd','Aug 5th'] },
+  { id: 'dom7',    label: 'Dom 7',       intervals: [0,4,7,10],   formula: 'R – M3 – P5 – m7', intervalNames: ['Root','Major 3rd','Perfect 5th','Minor 7th'] },
+  { id: 'maj7',    label: 'Maj 7',       intervals: [0,4,7,11],   formula: 'R – M3 – P5 – M7', intervalNames: ['Root','Major 3rd','Perfect 5th','Major 7th'] },
+  { id: 'min7',    label: 'Min 7',       intervals: [0,3,7,10],   formula: 'R – m3 – P5 – m7', intervalNames: ['Root','Minor 3rd','Perfect 5th','Minor 7th'] },
+  { id: 'dim7',    label: 'Dim 7',       intervals: [0,3,6,9],    formula: 'R – m3 – d5 – d7', intervalNames: ['Root','Minor 3rd','Dim 5th','Dim 7th'] },
+  { id: 'hdim7',   label: 'Half-dim 7',  intervals: [0,3,6,10],   formula: 'R – m3 – d5 – m7', intervalNames: ['Root','Minor 3rd','Dim 5th','Minor 7th'] },
+  { id: 'sus2',    label: 'Sus 2',       intervals: [0,2,7],      formula: 'R – M2 – P5',      intervalNames: ['Root','Major 2nd','Perfect 5th'] },
+  { id: 'sus4',    label: 'Sus 4',       intervals: [0,5,7],      formula: 'R – P4 – P5',      intervalNames: ['Root','Perfect 4th','Perfect 5th'] },
+  { id: '7sus4',   label: '7sus4',       intervals: [0,5,7,10],   formula: 'R – P4 – P5 – m7', intervalNames: ['Root','Perfect 4th','Perfect 5th','Minor 7th'] },
+  { id: 'maj6',    label: 'Maj 6',       intervals: [0,4,7,9],    formula: 'R – M3 – P5 – M6', intervalNames: ['Root','Major 3rd','Perfect 5th','Major 6th'] },
+  { id: 'min6',    label: 'Min 6',       intervals: [0,3,7,9],    formula: 'R – m3 – P5 – M6', intervalNames: ['Root','Minor 3rd','Perfect 5th','Major 6th'] },
+  { id: 'dom9',    label: 'Dom 9',       intervals: [0,4,7,10,2], formula: 'R – M3 – P5 – m7 – M9', intervalNames: ['Root','Major 3rd','Perfect 5th','Minor 7th','Major 9th'] },
+  { id: 'maj9',    label: 'Maj 9',       intervals: [0,4,7,11,2], formula: 'R – M3 – P5 – M7 – M9', intervalNames: ['Root','Major 3rd','Perfect 5th','Major 7th','Major 9th'] },
+  { id: 'min9',    label: 'Min 9',       intervals: [0,3,7,10,2], formula: 'R – m3 – P5 – m7 – M9', intervalNames: ['Root','Minor 3rd','Perfect 5th','Minor 7th','Major 9th'] },
+  { id: 'add9',    label: 'Add 9',       intervals: [0,4,7,2],    formula: 'R – M3 – P5 – M9', intervalNames: ['Root','Major 3rd','Perfect 5th','Major 9th'] },
+  { id: 'pow',     label: 'Power',       intervals: [0,7],        formula: 'R – P5',           intervalNames: ['Root','Perfect 5th'] },
+];
+
+// Chord symbol suffixes
+const CHORD_SYMBOLS = {
+  maj: '', min: 'm', dim: '°', aug: '+',
+  dom7: '7', maj7: 'maj7', min7: 'm7',
+  dim7: '°7', hdim7: 'ø7', sus2: 'sus2', sus4: 'sus4',
+  '7sus4': '7sus4', maj6: '6', min6: 'm6',
+  dom9: '9', maj9: 'maj9', min9: 'm9', add9: 'add9', pow: '5'
+};
+
+const INVERSION_NAMES = ['Root position', '1st inversion', '2nd inversion', '3rd inversion'];
+
+// ===== DIATONIC PROGRESSIONS =====
+const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
+const MAJOR_DIATONIC = [
+  { roman: 'I',    typeId: 'maj' },
+  { roman: 'ii',   typeId: 'min' },
+  { roman: 'iii',  typeId: 'min' },
+  { roman: 'IV',   typeId: 'maj' },
+  { roman: 'V',    typeId: 'maj' },
+  { roman: 'vi',   typeId: 'min' },
+  { roman: 'vii°', typeId: 'dim' },
+];
+const MINOR_SCALE = [0, 2, 3, 5, 7, 8, 10];
+const MINOR_DIATONIC = [
+  { roman: 'i',    typeId: 'min' },
+  { roman: 'ii°',  typeId: 'dim' },
+  { roman: 'III',  typeId: 'maj' },
+  { roman: 'iv',   typeId: 'min' },
+  { roman: 'v',    typeId: 'min' },
+  { roman: 'VI',   typeId: 'maj' },
+  { roman: 'VII',  typeId: 'maj' },
+];
+
+// Circle of fifths order (indices into ROOTS: C, G, D, A, E, B, F#, Db, Ab, Eb, Bb, F)
+const CIRCLE_OF_FIFTHS = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
+
+// State
+let selectedRoot = null;  // index into ROOTS
+let selectedType = null;  // index into CHORD_TYPES
+let selectedInversion = 0;
+let toneStarted = false;
+let instrumentMode = 'piano'; // 'piano', 'guitar', 'ukulele'
+
+// ===== HELPERS =====
+function useFlats(rootIdx) {
+  // Use flats for flat-key roots
+  const r = ROOTS[rootIdx].name;
+  return FLAT_ROOTS.has(r) || ROOTS[rootIdx].black;
+}
+
+function noteName(semiFromC, rootIdx) {
+  const idx = ((semiFromC % 12) + 12) % 12;
+  const raw = NOTE_NAMES[idx];
+  if (raw.length === 1) return raw;
+  // sharp or flat based on root context
+  if (useFlats(rootIdx)) {
+    return FLAT_MAP[raw] || raw;
+  }
+  return SHARP_DISPLAY[raw] || raw;
+}
+
+function chordNotes(rootIdx, typeIdx) {
+  const root = ROOTS[rootIdx].semi;
+  const type = CHORD_TYPES[typeIdx];
+  return type.intervals.map(i => (root + i) % 12);
+}
+
+function chordNoteNames(rootIdx, typeIdx) {
+  const semis = chordNotes(rootIdx, typeIdx);
+  return semis.map(s => noteName(s, rootIdx));
+}
+
+function getInversion(rootIdx, typeIdx, inv) {
+  const names = chordNoteNames(rootIdx, typeIdx);
+  const semis = chordNotes(rootIdx, typeIdx);
+  // Rotate
+  const rNames = [...names.slice(inv), ...names.slice(0, inv)];
+  const rSemis = [...semis.slice(inv), ...semis.slice(0, inv)];
+  // Build voiced semis — ascending from the bass note
+  // Each note must be >= the previous; if not, bump it up an octave
+  const voiced = [rSemis[0]];
+  for (let i = 1; i < rSemis.length; i++) {
+    let s = rSemis[i];
+    while (s <= voiced[i - 1]) s += 12;
+    voiced.push(s);
+  }
+  return { names: rNames, semis: rSemis, voicedSemis: voiced, bassNote: rNames[0] };
+}
+
+function chordSymbol(rootIdx, typeIdx) {
+  const rootDisplay = ROOTS[rootIdx].black && useFlats(rootIdx)
+    ? ROOTS[rootIdx].flatName
+    : (SHARP_DISPLAY[ROOTS[rootIdx].name] || ROOTS[rootIdx].name);
+  return rootDisplay + CHORD_SYMBOLS[CHORD_TYPES[typeIdx].id];
+}
+
+// Validation: check for special properties
+function validate(rootIdx, typeIdx) {
+  const type = CHORD_TYPES[typeIdx];
+  const notes = [];
+  const msgs = [];
+
+  // Check for symmetric chord
+  if (type.id === 'dim7') {
+    msgs.push('Symmetry: This dim7 splits the octave into 4 equal minor thirds. All 4 notes can be the root, giving 4 enharmonic names for the same chord.');
+  }
+  if (type.id === 'aug') {
+    msgs.push('Symmetry: This augmented triad splits the octave into 3 equal major thirds. All 3 notes can be the root.');
+  }
+
+  // Check for tritone
+  if (type.intervals.includes(6)) {
+    msgs.push('Contains a tritone (6 semitones) — the most dissonant interval, creating tension that wants to resolve.');
+  }
+
+  // Perfect fifth check
+  if (!type.intervals.includes(7) && type.id !== 'aug') {
+    msgs.push('No perfect 5th — gives this chord its unstable, unresolved character.');
+  }
+
+  return msgs;
+}
+
+// ===== PIANO RENDERER =====
+// Two octaves: C4 to B5
+// voicedSemis = absolute semitone positions (0-23+), e.g. [4,7,12] for C major 1st inv
+// rootSemi = the chord root's pitch class (0-11)
+function renderPiano(container, voicedSemis, rootSemi) {
+  container.innerHTML = '';
+
+  // White keys: 14 keys across 2 octaves
+  const whiteMap = [
+    {note:'C',semi:0},{note:'D',semi:2},{note:'E',semi:4},{note:'F',semi:5},
+    {note:'G',semi:7},{note:'A',semi:9},{note:'B',semi:11}
+  ];
+  const whites = [];
+  for (let oct = 0; oct < 2; oct++) {
+    whiteMap.forEach(w => whites.push({ ...w, oct, absSemi: w.semi + oct * 12 }));
+  }
+
+  const keyW = 100 / whites.length;
+  const activeSet = new Set(voicedSemis);
+  const rootMod = rootSemi % 12;
+
+  // Figure out which octaves the chord spans for labels
+  const minOct = Math.floor(Math.min(...voicedSemis) / 12);
+  const maxOct = Math.floor(Math.max(...voicedSemis) / 12);
+  const spansTwo = maxOct > minOct;
+
+  // Octave divider line (always show for orientation)
+  const divider = document.createElement('div');
+  divider.className = 'piano-octave-divider';
+  divider.style.left = (7 * keyW - 0.15) + '%';
+  container.appendChild(divider);
+
+  whites.forEach((w, i) => {
+    const el = document.createElement('div');
+    el.className = 'wk';
+    const isActive = activeSet.has(w.absSemi);
+    const noteMod = w.absSemi % 12;
+
+    if (isActive) {
+      if (noteMod === rootMod) el.className += ' on-root';
+      else el.className += ' on';
+    }
+
+    el.style.left = (i * keyW) + '%';
+    el.style.width = (keyW - 0.3) + '%';
+
+    if (isActive) {
+      const lbl = document.createElement('span');
+      lbl.className = 'key-note-label';
+      lbl.textContent = w.note;
+      el.appendChild(lbl);
+    }
+
+    container.appendChild(el);
+  });
+
+  // Black keys
+  const blackPositions = [
+    {after: 0, semi: 1, note:'C♯'},
+    {after: 1, semi: 3, note:'E♭'},
+    {after: 3, semi: 6, note:'F♯'},
+    {after: 4, semi: 8, note:'G♯'},
+    {after: 5, semi: 10, note:'B♭'},
+  ];
+
+  for (let oct = 0; oct < 2; oct++) {
+    blackPositions.forEach(bp => {
+      const i = bp.after + oct * 7;
+      if (i >= whites.length - 1) return;
+      const el = document.createElement('div');
+      el.className = 'bk';
+      const absSemi = bp.semi + oct * 12;
+      const isActive = activeSet.has(absSemi);
+      const noteMod = absSemi % 12;
+
+      if (isActive) {
+        if (noteMod === rootMod) el.className += ' on-root';
+        else el.className += ' on';
+      }
+
+      el.style.left = ((i + 1) * keyW - keyW * 0.28) + '%';
+      el.style.width = (keyW * 0.56) + '%';
+
+      if (isActive) {
+        const lbl = document.createElement('span');
+        lbl.className = 'key-note-label';
+        lbl.textContent = bp.note;
+        el.appendChild(lbl);
+      }
+
+      container.appendChild(el);
+    });
+  }
+}
+
+// ===== FRETBOARD ENGINE =====
+const TUNINGS = {
+  guitar:  [40, 45, 50, 55, 59, 64], // E2 A2 D3 G3 B3 E4 (MIDI)
+  ukulele: [67, 60, 64, 69]           // G4 C4 E4 A4 (MIDI, re-entrant)
+};
+
+const STRING_LABELS = {
+  guitar:  ['E','A','D','G','B','e'],
+  ukulele: ['G','C','E','A']
+};
+
+// Find best playable voicing for a chord on a fretboard
+function findVoicing(chordSemis, instrument) {
+  const tuning = TUNINGS[instrument];
+  const numStrings = tuning.length;
+  const noteSet = new Set(chordSemis.map(s => s % 12));
+  const rootSemi = chordSemis[0] % 12;
+  const maxFret = 15;
+
+  // For each string, find all frets (0..maxFret) that produce a chord tone
+  const options = tuning.map(openMidi => {
+    const frets = [];
+    for (let f = 0; f <= maxFret; f++) {
+      const semi = (openMidi + f) % 12;
+      if (noteSet.has(semi)) {
+        frets.push({ fret: f, semi, isRoot: semi === rootSemi });
+      }
+    }
+    return frets;
+  });
+
+  // Try to find a voicing within a fret span (max 4 frets for guitar, 4 for uke)
+  const maxSpan = 4;
+  let bestVoicing = null;
+  let bestScore = -Infinity;
+
+  // Try each starting fret position (including open)
+  for (let startFret = 0; startFret <= 12; startFret++) {
+    const voicing = []; // one entry per string: { fret, semi, isRoot } or null (muted)
+    let coveredNotes = new Set();
+
+    for (let s = 0; s < numStrings; s++) {
+      // Find best option on this string within the span (or open)
+      let best = null;
+      let bestFretScore = -100;
+
+      for (const opt of options[s]) {
+        const inSpan = opt.fret === 0 || (opt.fret >= startFret && opt.fret < startFret + maxSpan);
+        if (!inSpan) continue;
+        // Score: prefer root on low strings, prefer open, prefer lower frets
+        let score = 0;
+        if (opt.isRoot && s < numStrings / 2) score += 5;
+        if (opt.fret === 0) score += 2;
+        score -= opt.fret * 0.1;
+        if (score > bestFretScore) {
+          bestFretScore = score;
+          best = opt;
+        }
+      }
+
+      voicing.push(best); // null = muted
+      if (best) coveredNotes.add(best.semi);
+    }
+
+    // Score this voicing
+    // Must cover all chord tones
+    if (coveredNotes.size < noteSet.size) continue;
+
+    let score = 0;
+    let mutedCount = 0;
+    let lowestPlayed = -1;
+
+    for (let s = 0; s < numStrings; s++) {
+      if (!voicing[s]) {
+        mutedCount++;
+        // Penalize muted strings in the middle
+        if (lowestPlayed >= 0) score -= 3;
+      } else {
+        if (lowestPlayed < 0) lowestPlayed = s;
+        if (voicing[s].fret === 0) score += 1;
+        if (voicing[s].isRoot && s === lowestPlayed) score += 4;
+      }
+    }
+    score -= mutedCount;
+    // Prefer lower positions
+    score -= startFret * 0.3;
+    // Prefer fewer muted low strings
+    for (let s = 0; s < numStrings; s++) {
+      if (!voicing[s]) score -= 0.5;
+      else break;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestVoicing = voicing;
+    }
+  }
+
+  // Fallback: if no voicing found, try allowing more muted strings
+  if (!bestVoicing) {
+    bestVoicing = tuning.map((openMidi, s) => {
+      for (let f = 0; f <= 5; f++) {
+        if (noteSet.has((openMidi + f) % 12)) {
+          return { fret: f, semi: (openMidi + f) % 12, isRoot: (openMidi + f) % 12 === rootSemi };
+        }
+      }
+      return null;
+    });
+  }
+
+  return bestVoicing;
+}
+
+// Render SVG chord diagram
+function renderChordDiagram(container, chordSemis, instrument, rootIdx) {
+  const voicing = findVoicing(chordSemis, instrument);
+  const tuning = TUNINGS[instrument];
+  const labels = STRING_LABELS[instrument];
+  const numStrings = tuning.length;
+  const numFrets = 5;
+
+  // Determine fret range to show
+  const playedFrets = voicing.filter(v => v && v.fret > 0).map(v => v.fret);
+  let minFret = playedFrets.length ? Math.min(...playedFrets) : 1;
+  let maxFret = playedFrets.length ? Math.max(...playedFrets) : 4;
+
+  // If all within first 4 frets, show from fret 1
+  if (maxFret <= 4) {
+    minFret = 1;
+  } else {
+    // Center the window
+    minFret = Math.max(1, minFret);
+  }
+  const startFret = minFret;
+
+  // SVG dimensions
+  const stringSpacing = instrument === 'ukulele' ? 28 : 22;
+  const fretSpacing = 30;
+  const topMargin = 38;
+  const leftMargin = 30;
+  const rightMargin = 15;
+  const bottomMargin = 28;
+  const gridW = (numStrings - 1) * stringSpacing;
+  const gridH = numFrets * fretSpacing;
+  const svgW = leftMargin + gridW + rightMargin;
+  const svgH = topMargin + gridH + bottomMargin;
+
+  const rootSemi = chordSemis[0] % 12;
+
+  let svg = `<svg viewBox="0 0 ${svgW} ${svgH}" width="${svgW}" height="${svgH}" xmlns="http://www.w3.org/2000/svg">`;
+
+  // Nut (thick bar at top if starting from fret 1)
+  if (startFret === 1) {
+    svg += `<rect x="${leftMargin - 1}" y="${topMargin - 2}" width="${gridW + 2}" height="4" rx="1" fill="#3a3530"/>`;
+  }
+
+  // Fret number indicator if not starting from fret 1
+  if (startFret > 1) {
+    svg += `<text x="${leftMargin - 10}" y="${topMargin + fretSpacing / 2 + 4}" text-anchor="end" font-size="10" font-weight="700" fill="#9a958e">${startFret}fr</text>`;
+  }
+
+  // Fret lines
+  for (let f = 0; f <= numFrets; f++) {
+    const y = topMargin + f * fretSpacing;
+    svg += `<line x1="${leftMargin}" y1="${y}" x2="${leftMargin + gridW}" y2="${y}" stroke="#d0cbc2" stroke-width="${f === 0 ? 1.5 : 1}"/>`;
+  }
+
+  // String lines
+  for (let s = 0; s < numStrings; s++) {
+    const x = leftMargin + s * stringSpacing;
+    svg += `<line x1="${x}" y1="${topMargin}" x2="${x}" y2="${topMargin + gridH}" stroke="#b0aaa2" stroke-width="${instrument === 'guitar' ? Math.max(1, 2.2 - s * 0.25) : 1.5}"/>`;
+  }
+
+  // String labels at bottom
+  for (let s = 0; s < numStrings; s++) {
+    const x = leftMargin + s * stringSpacing;
+    svg += `<text x="${x}" y="${topMargin + gridH + 18}" text-anchor="middle" font-size="9" font-weight="600" fill="#b0aaa2">${labels[s]}</text>`;
+  }
+
+  // Finger dots and mute/open markers
+  for (let s = 0; s < numStrings; s++) {
+    const x = leftMargin + s * stringSpacing;
+    const v = voicing[s];
+
+    if (!v) {
+      // Muted string — X marker
+      svg += `<text x="${x}" y="${topMargin - 10}" text-anchor="middle" font-size="12" font-weight="700" fill="#c0b8b0">✕</text>`;
+    } else if (v.fret === 0) {
+      // Open string — O marker
+      svg += `<circle cx="${x}" cy="${topMargin - 14}" r="5" fill="none" stroke="${v.isRoot ? '#6a50a0' : '#8a8580'}" stroke-width="1.8"/>`;
+    } else {
+      // Fretted note — filled dot
+      const fretIdx = v.fret - startFret;
+      const y = topMargin + fretIdx * fretSpacing + fretSpacing / 2;
+      const isRoot = v.semi === rootSemi;
+      const r = instrument === 'ukulele' ? 9 : 8;
+      svg += `<circle cx="${x}" cy="${y}" r="${r}" fill="${isRoot ? '#6a50a0' : '#8a8580'}"/>`;
+      // Note name inside dot
+      const nName = noteName(v.semi, rootIdx);
+      svg += `<text x="${x}" y="${y + 3.5}" text-anchor="middle" font-size="7.5" font-weight="700" fill="#fff">${nName}</text>`;
+    }
+  }
+
+  svg += '</svg>';
+  container.innerHTML = `<div class="chord-diagram-wrap">${svg}</div>`;
+}
+
+function setInstrument(mode) {
+  instrumentMode = mode;
+  // Rebuild preset buttons for this instrument and apply its default
+  activePreset = 'default';
+  buildPresetButtons();
+  applyPreset('default');
+  renderResult();
+}
+
+// Score a voicing's playability (lower = easier)
+// Returns { score: 1-4, label, tip, cssClass }
+function rateVoicingDifficulty(chordSemis, instrument) {
+  const voicing = findVoicing(chordSemis, instrument);
+  const tuning = TUNINGS[instrument];
+  const numStrings = tuning.length;
+
+  let score = 0;
+  let tips = [];
+
+  // --- Fret span ---
+  const frettedPositions = voicing.filter(v => v && v.fret > 0).map(v => v.fret);
+  const span = frettedPositions.length > 1
+    ? Math.max(...frettedPositions) - Math.min(...frettedPositions)
+    : 0;
+
+  if (span >= 4) { score += 3; tips.push('wide stretch'); }
+  else if (span === 3) { score += 2; tips.push('3-fret stretch'); }
+  else if (span === 2) { score += 1; }
+
+  // --- Open strings (easier) ---
+  const openCount = voicing.filter(v => v && v.fret === 0).length;
+  if (openCount >= 3) score -= 2;
+  else if (openCount >= 1) score -= 1;
+  if (openCount >= 2) tips.push('uses open strings');
+
+  // --- Muted strings ---
+  const mutedCount = voicing.filter(v => !v).length;
+  if (mutedCount >= 2) { score += 2; tips.push('mute ' + mutedCount + ' strings'); }
+  else if (mutedCount === 1) { score += 1; }
+
+  // Interior mutes (muted string between played strings — hardest to control)
+  let hasInteriorMute = false;
+  let firstPlayed = -1, lastPlayed = -1;
+  for (let s = 0; s < numStrings; s++) {
+    if (voicing[s]) {
+      if (firstPlayed < 0) firstPlayed = s;
+      lastPlayed = s;
+    }
+  }
+  if (firstPlayed >= 0) {
+    for (let s = firstPlayed; s <= lastPlayed; s++) {
+      if (!voicing[s]) { hasInteriorMute = true; break; }
+    }
+  }
+  if (hasInteriorMute) { score += 2; tips.push('interior mute needed'); }
+
+  // --- Barre detection ---
+  // If multiple strings share the same fret at the lowest fretted position, likely a barre
+  if (frettedPositions.length >= 2) {
+    const minFret = Math.min(...frettedPositions);
+    const atMinFret = frettedPositions.filter(f => f === minFret).length;
+    if (atMinFret >= 2 && minFret > 0) {
+      score += 1;
+      if (atMinFret >= 4) { score += 1; tips.push('barre chord'); }
+      else tips.push('partial barre');
+    }
+  }
+
+  // --- High fret position (harder to reach) ---
+  const maxFret = frettedPositions.length ? Math.max(...frettedPositions) : 0;
+  if (maxFret > 7) { score += 1; tips.push('high up the neck'); }
+
+  // --- Finger count ---
+  const fingersNeeded = frettedPositions.length;
+  if (fingersNeeded >= 4) { score += 1; }
+  if (fingersNeeded <= 2 && openCount >= 1) { score -= 1; }
+
+  // Clamp to 1-4
+  score = Math.max(1, Math.min(4, Math.ceil(score / 2) + 1));
+
+  // If all open + nothing tricky, force easy
+  if (frettedPositions.length === 0) score = 1;
+  if (openCount >= 3 && span <= 1 && !hasInteriorMute && mutedCount === 0) score = 1;
+
+  const levels = [
+    { label: 'Easy', cssClass: 'diff-easy' },
+    { label: 'Medium', cssClass: 'diff-medium' },
+    { label: 'Hard', cssClass: 'diff-hard' },
+    { label: 'Very Hard', cssClass: 'diff-very-hard' },
+  ];
+
+  const level = levels[Math.min(score - 1, 3)];
+  const tip = tips.length > 0 ? tips.slice(0, 2).join(', ') : (score <= 1 ? 'beginner friendly' : '');
+
+  return { score, label: level.label, cssClass: level.cssClass, tip };
+}
+
+// ===== AUDIO =====
+// Android Chrome requires AudioContext creation + resume in a synchronous user gesture.
+// We use raw AudioContext first, then set Tone to use it.
+let synthLayers = [];
+let reverb = null;
+let compressor = null;
+let audioReady = false;
+let pendingPlay = null;
+let rawCtx = null;
+
+// Step 1: Create AudioContext synchronously on ANY user gesture
+function ensureContext() {
+  if (rawCtx) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    rawCtx = new AC();
+    // Immediately try to resume (must be sync in gesture handler)
+    if (rawCtx.state === 'suspended') {
+      rawCtx.resume();
+    }
+  } catch(e) {
+    console.warn('AudioContext creation failed:', e);
+  }
+}
+
+// Step 2: Build synths using the context we already created
+function finishAudioSetup() {
+  if (audioReady) return;
+  if (!rawCtx) ensureContext();
+  if (!rawCtx) return;
+
+  try {
+    // Tell Tone.js to use our already-unlocked context
+    Tone.setContext(rawCtx);
+
+    // Make sure it's running
+    if (rawCtx.state === 'suspended') {
+      rawCtx.resume();
+    }
+
+    initAudio();
+    audioReady = true;
+    toneStarted = true;
+
+    const banner = document.getElementById('audio-unlock');
+    if (banner) {
+      const btn = document.getElementById('audio-unlock-btn');
+      if (btn) btn.textContent = '✓ Sound On!';
+      setTimeout(() => banner.classList.add('hidden'), 600);
+    }
+  } catch(e) {
+    console.error('Audio setup failed:', e);
+    // Show a visible retry state — silent failures are invisible on mobile
+    const btn = document.getElementById('audio-unlock-btn');
+    if (btn) {
+      btn.textContent = 'Tap to Retry';
+      btn.style.background = '#c0392b';
+    }
+    // Reset so the user can try again
+    audioReady = false;
+    rawCtx = null;
+  }
+}
+
+// Attach to EVERY user gesture type — create context synchronously, build synths after
+function onUserGesture() {
+  ensureContext();
+  if (!audioReady) {
+    finishAudioSetup();
+  } else if (rawCtx && rawCtx.state === 'suspended') {
+    rawCtx.resume();
+  }
+  // Fire any pending play
+  if (audioReady && pendingPlay) {
+    const semis = pendingPlay;
+    pendingPlay = null;
+    doPlayNotes(semis);
+  }
+}
+
+// Multiple event types for maximum Android compatibility
+['click', 'touchstart', 'touchend', 'mousedown', 'keydown'].forEach(evt => {
+  document.addEventListener(evt, onUserGesture, { passive: true });
+});
+
+function initAudio() {
+  // Effects chain.
+  // Tone.Reverb (convolution) requires an AudioWorklet + Blob URL — both blocked by
+  // Chrome's file:// security policy. Tone.Freeverb is a fully algorithmic
+  // Schroeder/comb-filter reverb: no worklet, no blobs, works everywhere.
+  reverb = new Tone.Freeverb({ roomSize: 0.55, dampening: 3500, wet: 0.28 }).toDestination();
+  compressor = new Tone.Compressor({ threshold: -16, ratio: 3.5, attack: 0.008, release: 0.12 }).connect(reverb);
+
+  // ---- PIANO LAYERS ----
+  // Chorus simulates multiple slightly-detuned strings per key (the main thing that makes
+  // oscillator piano sound like a real instrument rather than a synth)
+  const pianoChorus = new Tone.Chorus({ rate: 0.45, delayTime: 3.5, depth: 0.32, feedback: 0.06, wet: 0.38 }).connect(compressor);
+  pianoChorus.start();
+  synthLayers._pianoChorus = pianoChorus;
+
+  // Body: richer harmonic series with natural roll-off matching real piano partials
+  const body = new Tone.PolySynth(Tone.Synth, {
+    maxPolyphony: 16,
+    oscillator: { type: 'fatcustom', partials: [1, 0.48, 0.22, 0.07, 0.025], spread: 11, count: 3 },
+    envelope: { attack: 0.018, decay: 1.1, sustain: 0.16, release: 2.4 },
+    volume: -11
+  }).connect(pianoChorus);
+
+  // Bright: hammer transient — very short FM burst at the attack
+  const bright = new Tone.PolySynth(Tone.FMSynth, {
+    maxPolyphony: 16,
+    harmonicity: 4,
+    modulationIndex: 1.2,
+    oscillator: { type: 'sine' },
+    modulation: { type: 'sine' },
+    envelope: { attack: 0.003, decay: 0.28, sustain: 0.0, release: 0.6 },
+    modulationEnvelope: { attack: 0.001, decay: 0.09, sustain: 0.0, release: 0.18 },
+    volume: -20
+  }).connect(pianoChorus);
+
+  // Sub: bass foundation — bypasses chorus so low end stays tight
+  const sub = new Tone.PolySynth(Tone.Synth, {
+    maxPolyphony: 16,
+    oscillator: { type: 'sine' },
+    envelope: { attack: 0.028, decay: 1.3, sustain: 0.12, release: 2.1 },
+    volume: -21
+  }).connect(compressor);
+
+  synthLayers = [body, bright, sub];
+  synthLayers._body = body;
+  synthLayers._bright = bright;
+  synthLayers._sub = sub;
+
+  // Guitar/Ukulele use the same piano synth for playback.
+  // Separate string synthesis (PluckSynth, AMSynth) proved unreliable under
+  // file:// due to Tone.js worklet constraints, and the AM-based fallbacks
+  // introduced audible artifacts. The piano layers sound clean across all
+  // instruments; guitar/uke views still show correct chord diagrams.
+}
+
+// Get actual MIDI note values from a fretboard voicing
+function getVoicingMidiNotes(chordSemis, instrument) {
+  const voicing = findVoicing(chordSemis, instrument);
+  const tuning = TUNINGS[instrument];
+  const notes = [];
+  for (let s = 0; s < tuning.length; s++) {
+    if (voicing[s]) {
+      const midi = tuning[s] + voicing[s].fret;
+      notes.push({ midi, stringIdx: s });
+    }
+  }
+  return notes;
+}
+
+// MIDI number to Tone.js note name
+function midiToNoteName(midi) {
+  const oct = Math.floor(midi / 12) - 1;
+  return NOTE_NAMES[midi % 12] + oct;
+}
+
+// Internal play — assumes audio is ready
+// All instruments use the same piano synth (guitar/uke views are visual only)
+function doPlayNotes(semis) {
+  if (rawCtx && rawCtx.state === 'suspended') {
+    rawCtx.resume();
+  }
+
+  const toneNotes = [];
+  let lastMidi = -1;
+  semis.forEach((s, i) => {
+    let midi = 60 + (s % 12);
+    if (midi <= lastMidi) midi += 12;
+    lastMidi = midi;
+    toneNotes.push(midiToNoteName(midi));
+  });
+
+  synthLayers.forEach(layer => {
+    if (typeof layer.releaseAll === 'function') {
+      layer.releaseAll();
+      layer.triggerAttackRelease(toneNotes, '1.5n');
+    }
+  });
+}
+
+// Public play — handles unlock flow
+function playNotes(semis) {
+  if (!audioReady) {
+    pendingPlay = semis;
+    ensureContext();
+    finishAudioSetup();
+    if (audioReady) {
+      pendingPlay = null;
+      doPlayNotes(semis);
+    }
+    return;
+  }
+  doPlayNotes(semis);
+}
+
+// Also handle via event delegation so dynamically-created Play buttons work
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.play-btn');
+  if (!btn) return;
+  const semisStr = btn.getAttribute('data-semis');
+  if (!semisStr) return;
+  e.preventDefault();
+  const semis = JSON.parse(semisStr);
+  playNotes(semis);
+}, { passive: false });
+
+// ===== SOUND PANEL =====
+function toggleSoundPanel() {
+  document.getElementById('sound-panel').classList.toggle('open');
+}
+
+const PRESETS = {
+  piano: {
+    default:     { reverb: 25, decay: 22, attack: 2,  sustain: 20, release: 20, bright: 50,  warm: 50, sub: 40, label: 'Default' },
+    concert:     { reverb: 15, decay: 15, attack: 1,  sustain: 8,  release: 18, bright: 65,  warm: 30, sub: 50, label: 'Concert' },
+    pad:         { reverb: 45, decay: 40, attack: 80, sustain: 70, release: 50, bright: 15,  warm: 80, sub: 60, label: 'Soft Pad' },
+    glass:       { reverb: 35, decay: 30, attack: 1,  sustain: 5,  release: 30, bright: 95,  warm: 10, sub: 10, label: 'Glass' },
+    organ:       { reverb: 20, decay: 18, attack: 5,  sustain: 90, release: 10, bright: 30,  warm: 60, sub: 70, label: 'Organ' },
+    cathedral:   { reverb: 85, decay: 75, attack: 15, sustain: 35, release: 55, bright: 25,  warm: 55, sub: 45, label: 'Cathedral' },
+    honkytonk:   { reverb: 12, decay: 10, attack: 1,  sustain: 5,  release: 12, bright: 80,  warm: 85, sub: 30, label: 'Honky Tonk' },
+    dreamy:      { reverb: 70, decay: 55, attack: 40, sustain: 45, release: 45, bright: 20,  warm: 70, sub: 55, label: 'Dreamy' },
+  },
+  guitar: {
+    default:     { reverb: 18, decay: 16, attack: 1,  sustain: 35, release: 18, bright: 55,  warm: 45, sub: 35, label: 'Default' },
+    acoustic:    { reverb: 20, decay: 18, attack: 1,  sustain: 30, release: 20, bright: 45,  warm: 55, sub: 40, label: 'Acoustic' },
+    bright:      { reverb: 15, decay: 14, attack: 1,  sustain: 25, release: 14, bright: 80,  warm: 25, sub: 20, label: 'Bright Steel' },
+    mellow:      { reverb: 25, decay: 20, attack: 2,  sustain: 40, release: 22, bright: 25,  warm: 70, sub: 50, label: 'Mellow' },
+    campfire:    { reverb: 35, decay: 30, attack: 1,  sustain: 35, release: 24, bright: 35,  warm: 60, sub: 45, label: 'Campfire' },
+    jazz:        { reverb: 22, decay: 18, attack: 1,  sustain: 45, release: 22, bright: 20,  warm: 65, sub: 55, label: 'Jazz' },
+    reverb_hall: { reverb: 70, decay: 60, attack: 2,  sustain: 30, release: 35, bright: 40,  warm: 50, sub: 35, label: 'Hall' },
+    dry:         { reverb: 5,  decay: 8,  attack: 1,  sustain: 20, release: 12, bright: 60,  warm: 35, sub: 30, label: 'Bone Dry' },
+  },
+  ukulele: {
+    default:     { reverb: 15, decay: 14, attack: 1,  sustain: 28, release: 14, bright: 60,  warm: 40, sub: 20, label: 'Default' },
+    sunny:       { reverb: 18, decay: 15, attack: 1,  sustain: 22, release: 16, bright: 70,  warm: 35, sub: 15, label: 'Sunny' },
+    warm:        { reverb: 22, decay: 18, attack: 2,  sustain: 38, release: 20, bright: 30,  warm: 70, sub: 35, label: 'Warm Nylon' },
+    island:      { reverb: 40, decay: 35, attack: 1,  sustain: 30, release: 26, bright: 50,  warm: 55, sub: 25, label: 'Island' },
+    tiny:        { reverb: 8,  decay: 8,  attack: 1,  sustain: 15, release: 10, bright: 85,  warm: 15, sub: 10, label: 'Tiny & Bright' },
+    lofi:        { reverb: 50, decay: 45, attack: 5,  sustain: 45, release: 30, bright: 20,  warm: 80, sub: 40, label: 'Lo-fi' },
+    plucky:      { reverb: 12, decay: 10, attack: 1,  sustain: 12, release: 12, bright: 75,  warm: 25, sub: 15, label: 'Plucky' },
+    dreamy:      { reverb: 65, decay: 55, attack: 15, sustain: 50, release: 35, bright: 25,  warm: 60, sub: 30, label: 'Dreamy' },
+  }
+};
+
+let activePreset = 'default';
+
+function getPresetsForInstrument() {
+  return PRESETS[instrumentMode] || PRESETS.piano;
+}
+
+function buildPresetButtons() {
+  const container = document.getElementById('preset-buttons');
+  if (!container) return;
+  const presets = getPresetsForInstrument();
+  container.innerHTML = '';
+  for (const [key, p] of Object.entries(presets)) {
+    const btn = document.createElement('button');
+    btn.className = 'sp-preset' + (key === activePreset ? ' active' : '');
+    btn.dataset.preset = key;
+    btn.textContent = p.label;
+    btn.onclick = () => applyPreset(key);
+    container.appendChild(btn);
+  }
+}
+
+function applyPreset(name) {
+  const presets = getPresetsForInstrument();
+  const p = presets[name];
+  if (!p) return;
+  activePreset = name;
+
+  document.getElementById('sl-reverb').value = p.reverb;
+  document.getElementById('sl-decay').value = p.decay;
+  document.getElementById('sl-attack').value = p.attack;
+  document.getElementById('sl-sustain').value = p.sustain;
+  document.getElementById('sl-release').value = p.release;
+  document.getElementById('sl-bright').value = p.bright;
+  document.getElementById('sl-warm').value = p.warm;
+  document.getElementById('sl-sub').value = p.sub;
+
+  // Highlight active preset
+  document.querySelectorAll('.sp-preset').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.preset === name);
+  });
+
+  onSoundChange();
+}
+
+function onSoundChange() {
+  const rv = parseInt(document.getElementById('sl-reverb').value);
+  const dc = parseInt(document.getElementById('sl-decay').value);
+  const at = parseInt(document.getElementById('sl-attack').value);
+  const su = parseInt(document.getElementById('sl-sustain').value);
+  const rl = parseInt(document.getElementById('sl-release').value);
+  const br = parseInt(document.getElementById('sl-bright').value);
+  const wm = parseInt(document.getElementById('sl-warm').value);
+  const sb = parseInt(document.getElementById('sl-sub').value);
+
+  // Update value labels
+  document.getElementById('sv-reverb').textContent = rv + '%';
+  document.getElementById('sv-decay').textContent = (dc / 10).toFixed(1) + 's';
+  document.getElementById('sv-attack').textContent = (at * 10) + 'ms';
+  document.getElementById('sv-sustain').textContent = su + '%';
+  document.getElementById('sv-release').textContent = (rl / 10).toFixed(1) + 's';
+  document.getElementById('sv-bright').textContent = br + '%';
+  document.getElementById('sv-warm').textContent = wm + '%';
+  document.getElementById('sv-sub').textContent = sb + '%';
+
+  // Clear active preset indicator since user is tweaking
+  activePreset = null;
+  // Check if current values match any preset for current instrument
+  const curPresets = getPresetsForInstrument();
+  for (const [name, p] of Object.entries(curPresets)) {
+    if (p.reverb === rv && p.decay === dc && p.attack === at && p.sustain === su &&
+        p.release === rl && p.bright === br && p.warm === wm && p.sub === sb) {
+      activePreset = name;
+      break;
+    }
+  }
+  document.querySelectorAll('.sp-preset').forEach(btn => {
+    btn.classList.toggle('active', activePreset && btn.dataset.preset === activePreset);
+  });
+
+  if (!audioReady) return; // synths not created yet
+
+  // Apply to reverb (Freeverb: roomSize controls decay length, no regeneration needed)
+  reverb.wet.value = rv / 100;
+  reverb.roomSize.value = 0.2 + (dc / 100) * 0.75; // 0.2 (tight) to 0.95 (large hall)
+
+  // Map slider values to synth params
+  const attackSec = Math.max(0.002, at / 100);     // 0.002 to 1.0s
+  const sustainVal = su / 100;                       // 0.0 to 1.0
+  const releaseSec = Math.max(0.1, rl / 10);        // 0.1 to 6.0s
+
+  // Body layer: attack, sustain, release, spread (warmth)
+  const body = synthLayers._body;
+  if (body) {
+    body.set({
+      envelope: { attack: attackSec, sustain: sustainVal, release: releaseSec },
+      oscillator: { spread: 2 + (wm / 100) * 34 } // 2 to 36 cents
+    });
+  }
+
+  // Bright layer: volume controls brightness
+  const bright = synthLayers._bright;
+  if (bright) {
+    bright.volume.value = br === 0 ? -Infinity : -30 + (br / 100) * 18; // -30 to -12 dB
+  }
+
+  // Sub layer: volume controls sub presence
+  const sub = synthLayers._sub;
+  if (sub) {
+    sub.volume.value = sb === 0 ? -Infinity : -30 + (sb / 100) * 16; // -30 to -14 dB
+    sub.set({ envelope: { attack: attackSec * 1.2, sustain: sustainVal * 0.8, release: releaseSec * 0.9 } });
+  }
+
+  // Piano chorus: warm slider widens the chorus depth (more "multiple string" character)
+  const pianoChorus = synthLayers._pianoChorus;
+  if (pianoChorus) {
+    pianoChorus.depth = 0.08 + (wm / 100) * 0.52; // 0.08 (subtle) to 0.60 (lush)
+  }
+
+  // Guitar/Ukulele share the piano synth — no separate string modulation needed
+}
+
+// ===== URL STATE =====
+function updateURL() {
+  if (selectedRoot === null || selectedType === null) return;
+  history.replaceState(null, '', '#' + selectedRoot + '-' + CHORD_TYPES[selectedType].id);
+}
+
+function restoreFromURL() {
+  const hash = window.location.hash.slice(1);
+  if (!hash) return;
+  const dashIdx = hash.indexOf('-');
+  if (dashIdx < 0) return;
+  const rootIdx = parseInt(hash.slice(0, dashIdx));
+  const typeId = hash.slice(dashIdx + 1);
+  const typeIdx = CHORD_TYPES.findIndex(t => t.id === typeId);
+  if (!isNaN(rootIdx) && rootIdx >= 0 && rootIdx < 12 && typeIdx >= 0) {
+    selectedRoot = rootIdx;
+    selectedType = typeIdx;
+    document.querySelectorAll('#root-picker .pill').forEach((p, i) => p.classList.toggle('active', i === rootIdx));
+    document.querySelectorAll('#type-picker .pill').forEach((p, i) => p.classList.toggle('active', i === typeIdx));
+    renderResult();
+  }
+}
+
+// ===== DARK MODE =====
+function toggleDark() {
+  document.body.classList.toggle('dark');
+  const dark = document.body.classList.contains('dark');
+  localStorage.setItem('theme', dark ? 'dark' : 'light');
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = dark ? '☀️' : '🌙';
+}
+
+// ===== RELATED CHORDS =====
+function getRelatedChords(rootIdx, typeIdx) {
+  const currentSemis = new Set(chordNotes(rootIdx, typeIdx));
+  const results = [];
+
+  for (let r = 0; r < ROOTS.length; r++) {
+    for (let t = 0; t < CHORD_TYPES.length; t++) {
+      if (r === rootIdx && t === typeIdx) continue;
+      const semis = chordNotes(r, t);
+      const shared = semis.filter(s => currentSemis.has(s)).length;
+      if (shared >= 2) {
+        results.push({ rootIdx: r, typeIdx: t, shared, symbol: chordSymbol(r, t) });
+      }
+    }
+  }
+
+  results.sort((a, b) => {
+    if (b.shared !== a.shared) return b.shared - a.shared;
+    const aDist = Math.min(Math.abs(a.rootIdx - rootIdx), 12 - Math.abs(a.rootIdx - rootIdx));
+    const bDist = Math.min(Math.abs(b.rootIdx - rootIdx), 12 - Math.abs(b.rootIdx - rootIdx));
+    return aDist - bDist;
+  });
+
+  return results.slice(0, 9);
+}
+
+function renderRelatedChords(rootIdx, typeIdx) {
+  const related = getRelatedChords(rootIdx, typeIdx);
+  if (related.length === 0) return '';
+
+  let html = '<div class="related-section">';
+  html += '<div class="related-title">Related Chords</div>';
+  html += `<div class="related-sub">Chords sharing 2 or more notes with ${chordSymbol(rootIdx, typeIdx)}</div>`;
+  html += '<div class="related-grid">';
+
+  related.forEach(r => {
+    const cls = r.shared >= 3 ? 'related-chip high-rel' : 'related-chip';
+    html += `<div class="${cls}" onclick="navigateToChord(${r.rootIdx},${r.typeIdx})">`;
+    html += `<span class="related-chip-name">${r.symbol}</span>`;
+    html += `<span class="related-chip-shared">${r.shared} shared</span>`;
+    html += '</div>';
+  });
+
+  html += '</div></div>';
+  return html;
+}
+
+// Navigate to a specific chord (used by related-chord chips)
+function navigateToChord(rootIdx, typeIdx) {
+  selectedRoot = rootIdx;
+  selectedType = typeIdx;
+  selectedInversion = 0;
+  document.querySelectorAll('#root-picker .pill').forEach((p, i) => p.classList.toggle('active', i === rootIdx));
+  document.querySelectorAll('#type-picker .pill').forEach((p, i) => p.classList.toggle('active', i === typeIdx));
+  renderResult();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ===== PROGRESSIONS =====
+let progMode = 'major'; // 'major' or 'minor'
+
+function setProgMode(mode) {
+  progMode = mode;
+  renderProgressions();
+}
+
+function renderProgressions() {
+  const area = document.getElementById('progressions-area');
+  if (!area) return;
+
+  if (selectedRoot === null) {
+    area.innerHTML = '';
+    return;
+  }
+
+  const scale     = progMode === 'major' ? MAJOR_SCALE : MINOR_SCALE;
+  const diatonic  = progMode === 'major' ? MAJOR_DIATONIC : MINOR_DIATONIC;
+  const rootSemi  = ROOTS[selectedRoot].semi;
+  const rootName  = noteName(rootSemi, selectedRoot);
+  const modeName  = progMode === 'major' ? 'Major' : 'Minor';
+
+  let html = '<div class="progressions-section">';
+  html += `<div class="prog-label">Diatonic chords in ${rootName} ${modeName}</div>`;
+
+  // Major / Minor toggle
+  html += '<div class="prog-mode-toggle">';
+  html += `<button class="prog-mode-btn ${progMode==='major'?'active':''}" onclick="setProgMode('major')">Major</button>`;
+  html += `<button class="prog-mode-btn ${progMode==='minor'?'active':''}" onclick="setProgMode('minor')">Minor</button>`;
+  html += '</div>';
+
+  html += '<div class="prog-row">';
+  diatonic.forEach((deg, i) => {
+    const degreeSemi = (rootSemi + scale[i]) % 12;
+    // Find the ROOTS index for this semitone
+    const degRootIdx = ROOTS.findIndex(r => r.semi === degreeSemi);
+    const degTypeIdx = CHORD_TYPES.findIndex(t => t.id === deg.typeId);
+    if (degRootIdx < 0 || degTypeIdx < 0) return;
+
+    const isActive = (degRootIdx === selectedRoot && degTypeIdx === selectedType);
+    const sym = chordSymbol(degRootIdx, degTypeIdx);
+
+    html += `<div class="prog-pill ${isActive ? 'active' : ''}" onclick="navigateToChord(${degRootIdx},${degTypeIdx})">`;
+    html += `<span class="prog-roman">${deg.roman}</span>`;
+    html += `<span class="prog-chord">${sym}</span>`;
+    html += '</div>';
+  });
+  html += '</div></div>';
+
+  area.innerHTML = html;
+}
+
+// ===== CIRCLE OF FIFTHS =====
+function renderCircleOfFifths() {
+  const container = document.getElementById('circle-of-fifths');
+  if (!container) return;
+
+  const cx = 110, cy = 110, r = 90, nodeR = 18;
+  const isDark = document.body.classList.contains('dark');
+
+  let svg = `<svg viewBox="0 0 220 220" width="220" height="220" xmlns="http://www.w3.org/2000/svg">`;
+
+  // Draw connecting ring
+  svg += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${isDark ? '#2e2a38' : '#e8e4de'}" stroke-width="1.5"/>`;
+
+  CIRCLE_OF_FIFTHS.forEach((rootIdx, i) => {
+    const angle = (i * 30 - 90) * Math.PI / 180; // start from top
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+    const root = ROOTS[rootIdx];
+
+    // Determine highlight
+    let fill, textFill, strokeCol;
+    if (selectedRoot !== null) {
+      const selSemi = ROOTS[selectedRoot].semi;
+      const thisSemi = root.semi;
+      const diff = ((thisSemi - selSemi) % 12 + 12) % 12;
+
+      if (rootIdx === selectedRoot) {
+        // Current root — strong highlight
+        fill = '#6a50a0';
+        textFill = '#fff';
+        strokeCol = '#6a50a0';
+      } else if (diff === 7) {
+        // Dominant (clockwise neighbour)
+        fill = isDark ? '#2a2040' : '#ece4f8';
+        textFill = isDark ? '#b090e0' : '#6a50a0';
+        strokeCol = isDark ? '#5a40a0' : '#c5b8d8';
+      } else if (diff === 5) {
+        // Subdominant (counter-clockwise neighbour)
+        fill = isDark ? '#2a2040' : '#ece4f8';
+        textFill = isDark ? '#b090e0' : '#6a50a0';
+        strokeCol = isDark ? '#5a40a0' : '#c5b8d8';
+      } else if (diff === 9) {
+        // Relative minor (for major root)
+        fill = isDark ? '#1e2030' : '#e8edf8';
+        textFill = isDark ? '#8090c0' : '#5060a0';
+        strokeCol = isDark ? '#405080' : '#b0bcd8';
+      } else if (diff === 3) {
+        // Relative major (for minor root)
+        fill = isDark ? '#1e2030' : '#e8edf8';
+        textFill = isDark ? '#8090c0' : '#5060a0';
+        strokeCol = isDark ? '#405080' : '#b0bcd8';
+      } else {
+        fill = isDark ? '#1e1c28' : '#faf8f5';
+        textFill = isDark ? '#6a6080' : '#8a8580';
+        strokeCol = isDark ? '#3a3540' : '#e0dbd4';
+      }
+    } else {
+      fill = isDark ? '#1e1c28' : '#faf8f5';
+      textFill = isDark ? '#a098b8' : '#6a6560';
+      strokeCol = isDark ? '#3a3540' : '#e0dbd4';
+    }
+
+    // Node name
+    const label = root.black
+      ? (root.flatName.replace('♭', 'b'))
+      : root.name;
+    const displayLabel = root.black ? root.flatName : root.name;
+
+    svg += `<g class="cof-node" onclick="cofClick(${rootIdx})">`;
+    svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${nodeR}" fill="${fill}" stroke="${strokeCol}" stroke-width="1.5"/>`;
+    svg += `<text class="cof-label" x="${x.toFixed(1)}" y="${(y + 4.5).toFixed(1)}" text-anchor="middle" font-size="${root.black ? 9 : 10.5}" fill="${textFill}">${displayLabel}</text>`;
+    svg += '</g>';
+  });
+
+  svg += '</svg>';
+  container.innerHTML = `<div class="cof-wrap">${svg}</div>`;
+}
+
+function cofClick(rootIdx) {
+  selectedRoot = rootIdx;
+  document.querySelectorAll('#root-picker .pill').forEach((p, i) => p.classList.toggle('active', i === rootIdx));
+  if (selectedType === null) {
+    selectedType = 0; // default to major
+    document.querySelectorAll('#type-picker .pill').forEach((p, i) => p.classList.toggle('active', i === 0));
+  }
+  selectedInversion = 0;
+  renderResult();
+}
+
+// ===== UI BUILDERS =====
+function buildPickers() {
+  const rootRow = document.getElementById('root-picker');
+  const typeRow = document.getElementById('type-picker');
+
+  ROOTS.forEach((r, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'pill' + (r.black ? ' black-note' : '');
+    btn.textContent = r.black ? (r.flatName + ' / ' + (SHARP_DISPLAY[r.name] || r.name)) : r.name;
+    btn.onclick = () => selectRoot(i);
+    btn.id = 'root-' + i;
+    rootRow.appendChild(btn);
+  });
+
+  CHORD_TYPES.forEach((t, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'pill';
+    btn.textContent = t.label;
+    btn.onclick = () => selectType(i);
+    btn.id = 'type-' + i;
+    typeRow.appendChild(btn);
+  });
+}
+
+function selectRoot(i) {
+  selectedRoot = i;
+  selectedInversion = 0;
+  document.querySelectorAll('#root-picker .pill').forEach((p, idx) => p.classList.toggle('active', idx === i));
+  renderResult();
+}
+
+function selectType(i) {
+  selectedType = i;
+  selectedInversion = 0;
+  document.querySelectorAll('#type-picker .pill').forEach((p, idx) => p.classList.toggle('active', idx === i));
+  renderResult();
+}
+
+function selectInv(i) {
+  selectedInversion = i;
+  renderResult();
+}
+
+function transpose(semitones) {
+  if (selectedRoot === null) return;
+  selectedRoot = ((selectedRoot + semitones) % 12 + 12) % 12;
+  selectedInversion = 0;
+  // Update root picker highlight
+  document.querySelectorAll('#root-picker .pill').forEach((p, idx) => p.classList.toggle('active', idx === selectedRoot));
+  renderResult();
+}
+
+function renderResult() {
+  const area = document.getElementById('result-area');
+
+  if (selectedRoot === null || selectedType === null) {
+    area.innerHTML = '<div class="empty-state"><span class="arrow">↑</span>Pick a root note and chord type to get started</div>';
+    renderProgressions();
+    renderCircleOfFifths();
+    return;
+  }
+
+  updateURL();
+
+  const type = CHORD_TYPES[selectedType];
+  const inv = getInversion(selectedRoot, selectedType, selectedInversion);
+  const symbol = chordSymbol(selectedRoot, selectedType);
+  const msgs = validate(selectedRoot, selectedType);
+  const rootSemi = ROOTS[selectedRoot].semi;
+
+  let html = '<div class="result-card">';
+
+  // Title and play
+  html += `<div class="chord-title">${symbol}</div>`;
+  html += `<div class="chord-formula">${type.formula}</div>`;
+  html += `<div class="chord-notes-text">${inv.names.join(' – ')}</div>`;
+
+  // Play button — uses data-semis + event delegation for Android compatibility
+  html += `<button class="play-btn" data-semis="[${inv.semis.join(',')}]">
+    <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+    Play
+  </button>`;
+
+  // Transpose controls
+  const intervals = [
+    { label: '½ step', semi: 1 },
+    { label: 'Whole', semi: 2 },
+    { label: 'Min 3rd', semi: 3 },
+    { label: 'Maj 3rd', semi: 4 },
+  ];
+  html += '<div class="transpose-section">';
+  html += '<div class="transpose-label">Transpose</div>';
+  html += '<div class="transpose-row">';
+  intervals.forEach(iv => {
+    html += `<div class="transpose-group">`;
+    html += `<button class="t-btn" onclick="transpose(-${iv.semi})" title="Down ${iv.label}">◀</button>`;
+    html += `<span class="t-label">${iv.label}</span>`;
+    html += `<button class="t-btn" onclick="transpose(${iv.semi})" title="Up ${iv.label}">▶</button>`;
+    html += `</div>`;
+  });
+  html += '</div>';
+  html += '<div class="transpose-hint">Shift the root up or down by a common interval</div>';
+  html += '</div>';
+
+  // Interval tags
+  html += '<div class="interval-tags">';
+  type.intervalNames.forEach((name, i) => {
+    const cls = i === 0 ? 'interval-tag root-tag' : 'interval-tag';
+    html += `<span class="${cls}">${name}</span>`;
+  });
+  html += '</div>';
+
+  // Instrument toggle
+  html += '<div class="inst-toggle">';
+  html += `<button class="inst-btn ${instrumentMode==='piano'?'active':''}" onclick="setInstrument('piano')">🎹 Piano</button>`;
+  html += `<button class="inst-btn ${instrumentMode==='guitar'?'active':''}" onclick="setInstrument('guitar')">🎸 Guitar</button>`;
+  html += `<button class="inst-btn ${instrumentMode==='ukulele'?'active':''}" onclick="setInstrument('ukulele')"><svg width="12" height="16" viewBox="0 0 12 16" fill="currentColor" style="vertical-align:-2px;margin-right:3px"><rect x="3.5" y="0" width="5" height="2.5" rx="1"/><rect x="5" y="2" width="2" height="4.5" rx="0.6"/><ellipse cx="6" cy="9" rx="2.8" ry="2.4"/><ellipse cx="6" cy="13" rx="3.8" ry="3.8"/></svg>Ukulele</button>`;
+  html += '</div>';
+
+  // Instrument display
+  if (instrumentMode === 'piano') {
+    html += '<div class="piano-container" id="main-piano"></div>';
+  } else {
+    html += '<div id="chord-diagram"></div>';
+  }
+
+  // Validation messages
+  if (msgs.length > 0) {
+    html += '<div class="callout">';
+    html += msgs.map(m => `<strong>⚡</strong> ${m}`).join('<br style="margin-bottom:0.3rem">');
+    html += '</div>';
+  }
+
+  html += '</div>';
+
+  // Inversions section
+  const numNotes = type.intervals.length;
+  html += '<div class="inversions-section">';
+  html += '<div class="inv-title">Inversions</div>';
+  html += '<div class="inv-sub">Same notes, different bottom note — changes the colour of the chord</div>';
+  html += '<div class="inv-cards">';
+
+  for (let v = 0; v < numNotes; v++) {
+    const invData = getInversion(selectedRoot, selectedType, v);
+    const isActive = v === selectedInversion;
+
+    // Difficulty rating for string instruments
+    let diffHtml = '';
+    let tipHtml = '';
+    if (instrumentMode === 'guitar' || instrumentMode === 'ukulele') {
+      const diff = rateVoicingDifficulty(invData.semis, instrumentMode);
+      const dots = Array.from({length: 4}, (_, d) =>
+        `<span class="diff-dot ${d < diff.score ? 'filled' : ''}"></span>`
+      ).join('');
+      diffHtml = `<span class="diff-badge ${diff.cssClass}"><span class="diff-dots">${dots}</span> ${diff.label}</span>`;
+      if (diff.tip) tipHtml = `<div class="inv-tip">${diff.tip}</div>`;
+    }
+
+    html += `<div class="inv-card ${isActive ? 'active' : ''}" onclick="selectInv(${v})">`;
+    html += '<div class="inv-card-header">';
+    html += `<span class="inv-name">${INVERSION_NAMES[v]}</span>`;
+    html += `<span class="inv-badge">${invData.bassNote} in bass</span>`;
+    html += diffHtml;
+    html += '</div>';
+    html += `<div class="inv-notes">${invData.names.join(' – ')}</div>`;
+    html += tipHtml;
+    html += '</div>';
+  }
+
+  html += '</div></div>';
+
+  // Related chords
+  html += renderRelatedChords(selectedRoot, selectedType);
+
+  // Smooth fade transition
+  const doSwap = () => {
+    area.innerHTML = html;
+
+    // Render instrument display
+    if (instrumentMode === 'piano') {
+      const pianoEl = document.getElementById('main-piano');
+      if (pianoEl) {
+        renderPiano(pianoEl, inv.voicedSemis, ROOTS[selectedRoot].semi);
+      }
+    } else {
+      const diagEl = document.getElementById('chord-diagram');
+      if (diagEl) {
+        renderChordDiagram(diagEl, inv.semis, instrumentMode, selectedRoot);
+      }
+    }
+
+    // Update progressions & circle of fifths
+    renderProgressions();
+    renderCircleOfFifths();
+
+    // Fade back in
+    requestAnimationFrame(() => area.classList.remove('fading-out'));
+  };
+
+  // If content is already showing, fade out first then swap
+  if (area.innerHTML && !area.classList.contains('fading-out')) {
+    area.classList.add('fading-out');
+    setTimeout(doSwap, 150);
+  } else {
+    doSwap();
+  }
+}
+
+// ===== INIT =====
+buildPickers();
+buildPresetButtons();
+
+// Restore dark mode preference
+if (localStorage.getItem('theme') === 'dark') {
+  document.body.classList.add('dark');
+  const btn = document.getElementById('theme-toggle');
+  if (btn) btn.textContent = '☀️';
+}
+
+// Restore chord from URL (calls renderResult which renders CoF + progressions)
+restoreFromURL();
+
+// If no URL state, still render circle of fifths and progressions
+if (selectedRoot === null) {
+  renderCircleOfFifths();
+  renderProgressions();
+}
+
+// Explicit handler for the unlock button (not relying on delegation alone)
+const unlockBtn = document.getElementById('audio-unlock-btn');
+if (unlockBtn) {
+  unlockBtn.addEventListener('click', function(e) {
+    ensureContext();
+    finishAudioSetup();
+  });
+  unlockBtn.addEventListener('touchend', function(e) {
+    ensureContext();
+    finishAudioSetup();
+  });
+}
+</script>
+</body>
+</html>
