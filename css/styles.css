@@ -1222,18 +1222,22 @@
 
   /* ---- Sample Loading Indicator ---- */
   .sample-loading {
-    margin: 0.6rem 0;
-    padding: 0.5rem 1rem;
-    background: #f5f3f0;
-    border-radius: 8px;
-    border: 1px solid #e8e4de;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 8000;
+    padding: 0.3rem 1rem;
+    background: rgba(245, 243, 240, 0.95);
+    border-bottom: 1px solid #e8e4de;
+    transition: transform 0.3s ease, opacity 0.3s ease;
   }
-  .sample-loading.hidden { display: none; }
-  .loading-bar { height: 3px; background: #edeae5; border-radius: 2px; overflow: hidden; margin: 0.35rem 0; }
+  .sample-loading.hidden { transform: translateY(-100%); opacity: 0; pointer-events: none; }
+  .loading-bar { height: 2px; background: #edeae5; border-radius: 2px; overflow: hidden; margin: 0.15rem 0; }
   .loading-fill { height: 100%; background: linear-gradient(90deg, #6a50a0, #8a70c0); width: 0%; transition: width 0.3s; border-radius: 2px; }
-  .loading-text { font-size: 0.68rem; color: #9a958e; text-align: center; }
+  .loading-text { font-size: 0.62rem; color: #9a958e; text-align: center; }
 
-  .dark .sample-loading { background: #1e1c28; border-color: #2e2a38; }
+  .dark .sample-loading { background: rgba(30, 28, 40, 0.95); border-color: #2e2a38; }
   .dark .loading-bar { background: #2a2630; }
   .dark .loading-text { color: #6a6080; }
 
