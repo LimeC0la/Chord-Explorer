@@ -81,6 +81,9 @@ if (unlockBtn) {
 
 // ---- Event delegation ----
 document.addEventListener('click', function(e) {
+  // Ignore clicks inside the audio unlock overlay
+  if (e.target.closest('.audio-unlock')) return;
+
   // Play button
   const playBtn = e.target.closest('.play-btn');
   if (playBtn) {
