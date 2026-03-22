@@ -336,9 +336,6 @@ export function renderSequence() {
   }
   html += '</div>';
 
-  // Add button
-  html += `<button class="seq-add-btn" data-seq-action="add">+ Add Current Chord</button>`;
-
   html += '</div>';
   area.innerHTML = html;
 }
