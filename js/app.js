@@ -1,8 +1,9 @@
 // ===== APP ENTRY POINT =====
-// Wires up state, events, and initialization.
+// Wires up state, events, tabs, and initialization.
 
 import {
-  buildPickers, buildPresetButtons, renderResult, renderProgressions,
+  buildPickers, buildPresetButtons, buildSequencePicker,
+  renderResult, renderProgressions,
   renderCircleOfFifths, restoreFromURL, toggleDark, toggleSoundPanel,
   setInstrument, applyPreset, onSoundChange, navigateToChord,
   selectRoot, selectType, selectInv, transpose, cofClick,
@@ -27,11 +28,14 @@ import {
   renderListenerPanel, handleListenerClick
 } from './listener/listener-ui.js';
 
+import { switchTab, getActiveTab } from './tabs.js';
+
 // ---- Wire up loading indicator ----
 setLoadProgressCallback(showLoadingIndicator);
 
 // ---- Build UI ----
 buildPickers();
+buildSequencePicker();
 buildPresetButtons();
 
 // ---- Restore dark mode ----
@@ -61,9 +65,7 @@ let audioInited = false;
 function lazyInitAudio() {
   if (audioInited) return;
   audioInited = true;
-  // Create context synchronously (must happen in gesture handler)
   ensureContext();
-  // Defer heavy synth setup so it doesn't block the current click
   setTimeout(() => finishAudioSetup(), 0);
   ['click', 'touchstart', 'touchend', 'mousedown', 'keydown'].forEach(evt => {
     document.removeEventListener(evt, lazyInitAudio, true);
@@ -73,19 +75,24 @@ function lazyInitAudio() {
   document.addEventListener(evt, lazyInitAudio, { capture: true, passive: true });
 });
 
-// ---- Helper: after root/type selection, handle replace mode ----
-function checkReplaceMode() {
-  if (isSequenceSelecting()) {
-    const root = getSelectedRoot();
-    const type = getSelectedType();
-    if (root !== null && type !== null) {
-      replaceChord(getSelectedSeqIdx(), root, type);
-    }
-  }
+// ---- Sequence picker state (independent from explorer pickers) ----
+let seqPickerRoot = null;
+let seqPickerType = null;
+
+function updateSeqAddBtn() {
+  const btn = document.getElementById('seq-add-selected');
+  if (btn) btn.disabled = (seqPickerRoot === null || seqPickerType === null);
 }
 
 // ---- Event delegation ----
 document.addEventListener('click', function(e) {
+  // Tab switching (desktop + mobile)
+  const tabBtn = e.target.closest('[data-tab]');
+  if (tabBtn) {
+    switchTab(tabBtn.dataset.tab);
+    return;
+  }
+
   // Play button
   const playBtn = e.target.closest('.play-btn');
   if (playBtn) {
@@ -93,6 +100,33 @@ document.addEventListener('click', function(e) {
     if (semisStr) {
       e.preventDefault();
       playNotes(JSON.parse(semisStr));
+    }
+    return;
+  }
+
+  // ---- Sequence picker pills ----
+  const seqRootPill = e.target.closest('#seq-root-picker .pill');
+  if (seqRootPill && seqRootPill.dataset.seqRootIdx !== undefined) {
+    seqPickerRoot = parseInt(seqRootPill.dataset.seqRootIdx);
+    document.querySelectorAll('#seq-root-picker .pill').forEach((p, i) =>
+      p.classList.toggle('active', i === seqPickerRoot));
+    updateSeqAddBtn();
+    // If a sequence chip is selected for replacement, replace it
+    if (isSequenceSelecting() && seqPickerRoot !== null && seqPickerType !== null) {
+      replaceChord(getSelectedSeqIdx(), seqPickerRoot, seqPickerType);
+    }
+    return;
+  }
+
+  const seqTypePill = e.target.closest('#seq-type-picker .pill');
+  if (seqTypePill && seqTypePill.dataset.seqTypeIdx !== undefined) {
+    seqPickerType = parseInt(seqTypePill.dataset.seqTypeIdx);
+    document.querySelectorAll('#seq-type-picker .pill').forEach((p, i) =>
+      p.classList.toggle('active', i === seqPickerType));
+    updateSeqAddBtn();
+    // If a sequence chip is selected for replacement, replace it
+    if (isSequenceSelecting() && seqPickerRoot !== null && seqPickerType !== null) {
+      replaceChord(getSelectedSeqIdx(), seqPickerRoot, seqPickerType);
     }
     return;
   }
@@ -106,6 +140,10 @@ document.addEventListener('click', function(e) {
       const type = getSelectedType();
       if (root !== null && type !== null) {
         addChord(root, type);
+      }
+    } else if (action === 'add-from-picker') {
+      if (seqPickerRoot !== null && seqPickerType !== null) {
+        addChord(seqPickerRoot, seqPickerType);
       }
     } else if (action === 'undo') { undo(); }
     else if (action === 'redo') { redo(); }
@@ -130,19 +168,17 @@ document.addEventListener('click', function(e) {
     return;
   }
 
-  // Root picker pill
+  // Root picker pill (explorer)
   const rootPill = e.target.closest('#root-picker .pill');
   if (rootPill && rootPill.dataset.rootIdx !== undefined) {
     selectRoot(parseInt(rootPill.dataset.rootIdx));
-    checkReplaceMode();
     return;
   }
 
-  // Type picker pill
+  // Type picker pill (explorer)
   const typePill = e.target.closest('#type-picker .pill');
   if (typePill && typePill.dataset.typeIdx !== undefined) {
     selectType(parseInt(typePill.dataset.typeIdx));
-    checkReplaceMode();
     return;
   }
 
@@ -167,7 +203,7 @@ document.addEventListener('click', function(e) {
     return;
   }
 
-  // Sound panel toggle
+  // Sound panel toggle (only used if sound panel has the old collapsible style)
   const spToggle = e.target.closest('.sound-panel-toggle');
   if (spToggle) {
     toggleSoundPanel();

@@ -46,53 +46,37 @@ export function renderListenerPanel() {
   if (!container) return;
 
   container.innerHTML = `
-    <div class="listener-panel" id="listener-panel">
-      <div class="listener-header" data-listener-action="toggle-listener-panel">
-        <span class="listener-header-title">\uD83C\uDFA4 Chord Listener</span>
-        <span class="listener-header-arrow" id="listener-arrow">\u25BC</span>
+    <div class="listener-panel listener-panel-tab" id="listener-panel">
+      <div class="listener-controls">
+        <button class="mic-btn" id="listener-mic-btn" data-listener-action="toggle-mic">
+          \uD83C\uDFA4 Start Listening
+        </button>
+        <button class="listener-clear-btn" id="listener-clear-btn"
+                data-listener-action="clear-history" style="display:none;">
+          Clear
+        </button>
       </div>
-      <div class="listener-body" id="listener-body" style="display:none;">
-        <div class="listener-controls">
-          <button class="mic-btn" id="listener-mic-btn" data-listener-action="toggle-mic">
-            \uD83C\uDFA4 Start Listening
-          </button>
-          <button class="listener-clear-btn" id="listener-clear-btn"
-                  data-listener-action="clear-history" style="display:none;">
-            Clear
-          </button>
-        </div>
 
-        <div class="listener-level-bar" id="listener-level-bar">
-          <div class="listener-level-fill" id="listener-level-fill"></div>
-          <div class="listener-level-gate" style="left:${Math.round(AMP_GATE * 100 / 0.3)}%"
-               title="Minimum level to detect"></div>
-        </div>
-
-        <div id="listener-current" class="listener-current">
-          <p class="listener-hint" id="listener-status">Play a chord and I'll try to identify it</p>
-        </div>
-
-        <div class="listener-history-container" id="listener-history-container" style="display:none;">
-          <div class="listener-history-label">Detected chords</div>
-          <div class="listener-history" id="listener-history"></div>
-        </div>
-
-        <p class="listener-footer">Strum or play a chord \u2014 sustained matches are logged below</p>
+      <div class="listener-level-bar" id="listener-level-bar">
+        <div class="listener-level-fill" id="listener-level-fill"></div>
+        <div class="listener-level-gate" style="left:${Math.round(AMP_GATE * 100 / 0.3)}%"
+             title="Minimum level to detect"></div>
       </div>
+
+      <div id="listener-current" class="listener-current">
+        <p class="listener-hint" id="listener-status">Play a chord and I'll try to identify it</p>
+      </div>
+
+      <div class="listener-history-container" id="listener-history-container" style="display:none;">
+        <div class="listener-history-label">Detected chords</div>
+        <div class="listener-history" id="listener-history"></div>
+      </div>
+
+      <p class="listener-footer">Strum or play a chord \u2014 sustained matches are logged below</p>
     </div>`;
 }
 
-/**
- * Toggle the panel body visibility.
- */
-export function toggleListenerPanel() {
-  panelExpanded = !panelExpanded;
-
-  const body = document.getElementById('listener-body');
-  const arrow = document.getElementById('listener-arrow');
-  if (body) body.style.display = panelExpanded ? '' : 'none';
-  if (arrow) arrow.textContent = panelExpanded ? '\u25B2' : '\u25BC';
-}
+// toggleListenerPanel removed — listener now has its own tab, no collapse needed
 
 /**
  * Start or stop the microphone and detection loop.
@@ -182,9 +166,6 @@ export function clearHistory() {
  */
 export function handleListenerClick(action, target) {
   switch (action) {
-    case 'toggle-listener-panel':
-      toggleListenerPanel();
-      break;
     case 'toggle-mic':
       toggleMic();
       break;

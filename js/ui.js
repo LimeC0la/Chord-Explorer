@@ -11,6 +11,7 @@ import {
 import { renderChordDiagram, rateVoicingDifficulty } from './fretboard.js';
 import { PRESETS } from './sound-presets.js';
 import { playNotes, isSamplerReady, setLoadProgressCallback, setCurrentInstrument, applySoundParams } from './audio-engine.js';
+import { switchTab } from './tabs.js';
 
 // ---- State (owned by this module, exposed via getters/setters) ----
 let selectedRoot = null;
@@ -288,6 +289,29 @@ export function buildPickers() {
   });
 }
 
+// Build the sequence tab's own chord picker (same pills, different data attributes)
+export function buildSequencePicker() {
+  const rootRow = document.getElementById('seq-root-picker');
+  const typeRow = document.getElementById('seq-type-picker');
+  if (!rootRow || !typeRow) return;
+
+  ROOTS.forEach((r, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'pill' + (r.black ? ' black-note' : '');
+    btn.textContent = r.black ? (r.flatName + ' / ' + (SHARP_DISPLAY[r.name] || r.name)) : r.name;
+    btn.dataset.seqRootIdx = i;
+    rootRow.appendChild(btn);
+  });
+
+  CHORD_TYPES.forEach((t, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'pill';
+    btn.textContent = t.label;
+    btn.dataset.seqTypeIdx = i;
+    typeRow.appendChild(btn);
+  });
+}
+
 // ===== PRESETS =====
 export function buildPresetButtons() {
   const container = document.getElementById('preset-buttons');
@@ -385,6 +409,7 @@ export function navigateToChord(rootIdx, typeIdx) {
   selectedInversion = 0;
   document.querySelectorAll('#root-picker .pill').forEach((p, i) => p.classList.toggle('active', i === rootIdx));
   document.querySelectorAll('#type-picker .pill').forEach((p, i) => p.classList.toggle('active', i === typeIdx));
+  switchTab('explorer');
   renderResult();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }

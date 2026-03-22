@@ -14,100 +14,135 @@
   <h1>Chord Explorer</h1>
   <p class="tagline">Pick a root and chord type — see the notes, keyboard, and inversions</p>
 
-  <!-- Root picker -->
+  <!-- Root + Type pickers — always visible -->
   <div class="picker-section">
     <div class="picker-label">Root Note</div>
     <div class="pill-row" id="root-picker"></div>
 
     <div class="picker-label">Chord Type</div>
     <div class="pill-row" id="type-picker"></div>
-
-    <!-- Circle of Fifths (rendered dynamically) -->
-    <div id="circle-of-fifths"></div>
   </div>
 
-  <!-- Chord Progressions (rendered dynamically) -->
-  <div id="progressions-area"></div>
-
-  <!-- Chord Sequence Builder -->
-  <div id="sequence-area"></div>
-
-  <!-- Sample Loading Indicator -->
-  <div id="sample-loading" class="sample-loading hidden">
-    <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
-    <div class="loading-text" id="loading-text">Loading samples...</div>
+  <!-- Tab bar (desktop: horizontal below pickers, mobile: fixed bottom) -->
+  <div class="tab-bar" id="tab-bar">
+    <button class="tab-btn active" data-tab="explorer">🎹 Explorer</button>
+    <button class="tab-btn" data-tab="sequence">📋 Sequence</button>
+    <button class="tab-btn" data-tab="listener">🎤 Listener</button>
+    <button class="tab-btn" data-tab="settings">⚙️ Settings</button>
   </div>
 
-  <!-- Chord Listener -->
-  <div id="listener-area"></div>
-
-  <!-- Sound Settings -->
-  <div class="sound-panel" id="sound-panel">
-    <div class="sound-panel-toggle">
-      <span class="sp-title"><span class="sp-icon">🎛</span> Sound Settings</span>
-      <span class="sp-chevron">▼</span>
+  <!-- Tab content panels -->
+  <div class="tab-content">
+    <!-- Explorer tab -->
+    <div class="tab-panel active" id="tab-explorer">
+      <div id="circle-of-fifths"></div>
+      <div id="progressions-area"></div>
+      <div id="result-area">
+        <div class="empty-state">
+          <span class="arrow">↑</span>
+          Pick a root note and chord type to get started
+        </div>
+      </div>
     </div>
-    <div class="sound-panel-body">
-      <div class="sp-group">
-        <div class="sp-group-label"><span class="sp-name">Reverb</span><span class="sp-value" id="sv-reverb">25%</span></div>
-        <div class="sp-desc">Room size — dry to cathedral</div>
-        <input type="range" class="sp-slider" id="sl-reverb" min="0" max="100" value="25">
+
+    <!-- Sequence tab -->
+    <div class="tab-panel" id="tab-sequence" hidden>
+      <div class="picker-section seq-picker-section">
+        <div class="picker-label">Root Note</div>
+        <div class="pill-row" id="seq-root-picker"></div>
+        <div class="picker-label">Chord Type</div>
+        <div class="pill-row" id="seq-type-picker"></div>
+        <button class="seq-add-btn" id="seq-add-selected" data-seq-action="add-from-picker" disabled>
+          + Add to Sequence
+        </button>
       </div>
-      <div class="sp-group">
-        <div class="sp-group-label"><span class="sp-name">Reverb Decay</span><span class="sp-value" id="sv-decay">2.2s</span></div>
-        <div class="sp-desc">How long the room ring lasts</div>
-        <input type="range" class="sp-slider" id="sl-decay" min="1" max="80" value="22">
+      <div id="sequence-area"></div>
+    </div>
+
+    <!-- Listener tab -->
+    <div class="tab-panel" id="tab-listener" hidden>
+      <div id="listener-area"></div>
+    </div>
+
+    <!-- Settings tab -->
+    <div class="tab-panel" id="tab-settings" hidden>
+      <div class="sound-panel settings-tab-panel" id="sound-panel">
+        <div class="sp-section-title">🎛 Sound Settings</div>
+        <div class="sound-panel-body" style="display:block;">
+          <div class="sp-group">
+            <div class="sp-group-label"><span class="sp-name">Reverb</span><span class="sp-value" id="sv-reverb">25%</span></div>
+            <div class="sp-desc">Room size — dry to cathedral</div>
+            <input type="range" class="sp-slider" id="sl-reverb" min="0" max="100" value="25">
+          </div>
+          <div class="sp-group">
+            <div class="sp-group-label"><span class="sp-name">Reverb Decay</span><span class="sp-value" id="sv-decay">2.2s</span></div>
+            <div class="sp-desc">How long the room ring lasts</div>
+            <input type="range" class="sp-slider" id="sl-decay" min="1" max="80" value="22">
+          </div>
+          <hr class="sp-divider">
+          <div class="sp-group">
+            <div class="sp-group-label"><span class="sp-name">Attack</span><span class="sp-value" id="sv-attack">20ms</span></div>
+            <div class="sp-desc">How quickly notes start — percussive to soft pad</div>
+            <input type="range" class="sp-slider" id="sl-attack" min="1" max="100" value="2">
+          </div>
+          <div class="sp-group">
+            <div class="sp-group-label"><span class="sp-name">Sustain</span><span class="sp-value" id="sv-sustain">20%</span></div>
+            <div class="sp-desc">How long notes ring — controls chord body on strings</div>
+            <input type="range" class="sp-slider" id="sl-sustain" min="0" max="100" value="20">
+          </div>
+          <div class="sp-group">
+            <div class="sp-group-label"><span class="sp-name">Release</span><span class="sp-value" id="sv-release">2.0s</span></div>
+            <div class="sp-desc">Fade-out time after note ends</div>
+            <input type="range" class="sp-slider" id="sl-release" min="1" max="60" value="20">
+          </div>
+          <hr class="sp-divider">
+          <div class="sp-group">
+            <div class="sp-group-label"><span class="sp-name">Brightness</span><span class="sp-value" id="sv-bright">50%</span></div>
+            <div class="sp-desc">FM hammer ping on piano, pick attack on strings</div>
+            <input type="range" class="sp-slider" id="sl-bright" min="0" max="100" value="50">
+          </div>
+          <div class="sp-group">
+            <div class="sp-group-label"><span class="sp-name">Warmth</span><span class="sp-value" id="sv-warm">50%</span></div>
+            <div class="sp-desc">Oscillator spread &amp; chorus depth — more warmth = lusher, wider sound</div>
+            <input type="range" class="sp-slider" id="sl-warm" min="0" max="100" value="50">
+          </div>
+          <div class="sp-group">
+            <div class="sp-group-label"><span class="sp-name">Sub Bass</span><span class="sp-value" id="sv-sub">40%</span></div>
+            <div class="sp-desc">Low-end sine foundation</div>
+            <input type="range" class="sp-slider" id="sl-sub" min="0" max="100" value="40">
+          </div>
+          <hr class="sp-divider">
+          <div class="sp-group-label"><span class="sp-name">Presets</span></div>
+          <div class="sp-preset-row" id="preset-buttons"></div>
+        </div>
       </div>
-      <hr class="sp-divider">
-      <div class="sp-group">
-        <div class="sp-group-label"><span class="sp-name">Attack</span><span class="sp-value" id="sv-attack">20ms</span></div>
-        <div class="sp-desc">How quickly notes start — percussive to soft pad</div>
-        <input type="range" class="sp-slider" id="sl-attack" min="1" max="100" value="2">
-      </div>
-      <div class="sp-group">
-        <div class="sp-group-label"><span class="sp-name">Sustain</span><span class="sp-value" id="sv-sustain">20%</span></div>
-        <div class="sp-desc">How long notes ring — controls chord body on strings</div>
-        <input type="range" class="sp-slider" id="sl-sustain" min="0" max="100" value="20">
-      </div>
-      <div class="sp-group">
-        <div class="sp-group-label"><span class="sp-name">Release</span><span class="sp-value" id="sv-release">2.0s</span></div>
-        <div class="sp-desc">Fade-out time after note ends</div>
-        <input type="range" class="sp-slider" id="sl-release" min="1" max="60" value="20">
-      </div>
-      <hr class="sp-divider">
-      <div class="sp-group">
-        <div class="sp-group-label"><span class="sp-name">Brightness</span><span class="sp-value" id="sv-bright">50%</span></div>
-        <div class="sp-desc">FM hammer ping on piano, pick attack on strings</div>
-        <input type="range" class="sp-slider" id="sl-bright" min="0" max="100" value="50">
-      </div>
-      <div class="sp-group">
-        <div class="sp-group-label"><span class="sp-name">Warmth</span><span class="sp-value" id="sv-warm">50%</span></div>
-        <div class="sp-desc">Oscillator spread &amp; chorus depth — more warmth = lusher, wider sound</div>
-        <input type="range" class="sp-slider" id="sl-warm" min="0" max="100" value="50">
-      </div>
-      <div class="sp-group">
-        <div class="sp-group-label"><span class="sp-name">Sub Bass</span><span class="sp-value" id="sv-sub">40%</span></div>
-        <div class="sp-desc">Low-end sine foundation</div>
-        <input type="range" class="sp-slider" id="sl-sub" min="0" max="100" value="40">
-      </div>
-      <hr class="sp-divider">
-      <div class="sp-group-label"><span class="sp-name">Presets</span></div>
-      <div class="sp-preset-row" id="preset-buttons"></div>
     </div>
   </div>
 
-  <!-- Result -->
-  <div id="result-area">
-    <div class="empty-state">
-      <span class="arrow">↑</span>
-      Pick a root note and chord type to get started
-    </div>
+  <!-- Mobile bottom tab bar -->
+  <div class="tab-bar-mobile" id="tab-bar-mobile">
+    <button class="tab-btn-mobile active" data-tab="explorer">
+      <span class="tab-icon">🎹</span><span class="tab-label">Explorer</span>
+    </button>
+    <button class="tab-btn-mobile" data-tab="sequence">
+      <span class="tab-icon">📋</span><span class="tab-label">Sequence</span>
+    </button>
+    <button class="tab-btn-mobile" data-tab="listener">
+      <span class="tab-icon">🎤</span><span class="tab-label">Listener</span>
+    </button>
+    <button class="tab-btn-mobile" data-tab="settings">
+      <span class="tab-icon">⚙️</span><span class="tab-label">Settings</span>
+    </button>
   </div>
 </div>
 
-<!-- Pre-patch AudioWorklet.addModule before Tone.js loads.
-     Under file://, Chrome blocks blob: URLs from null origins, so Tone.js's
-     internal worklet registrations always fail. This patch suppresses those errors. -->
+<!-- Sample Loading Indicator (fixed position, global) -->
+<div id="sample-loading" class="sample-loading hidden">
+  <div class="loading-bar"><div class="loading-fill" id="loading-fill"></div></div>
+  <div class="loading-text" id="loading-text">Loading samples...</div>
+</div>
+
+<!-- Pre-patch AudioWorklet.addModule before Tone.js loads. -->
 <script>
 if ('AudioWorklet' in window) {
   const _addModule = AudioWorklet.prototype.addModule;
