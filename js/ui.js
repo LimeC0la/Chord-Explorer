@@ -21,6 +21,7 @@ let progMode = 'major';
 let activePreset = 'default';
 let prevRoot = null;    // track for fade-on-chord-change
 let prevType = null;
+let skipFade = false;   // set true to bypass fade on next render
 
 // ---- Public state accessors ----
 export function getSelectedRoot() { return selectedRoot; }
@@ -412,6 +413,7 @@ export function transpose(semitones) {
   if (selectedRoot === null) return;
   selectedRoot = ((selectedRoot + semitones) % 12 + 12) % 12;
   selectedInversion = 0;
+  skipFade = true;
   document.querySelectorAll('#root-picker .pill').forEach((p, idx) => p.classList.toggle('active', idx === selectedRoot));
   renderResult();
 }
@@ -570,8 +572,11 @@ export function renderResult() {
     }
   };
 
-  // Only fade on chord changes; instant swap for inversions/instrument switches
-  if (chordChanged && area.innerHTML && !area.classList.contains('fading-out')) {
+  // Only fade on chord changes (not transpose, inversion, or instrument switches)
+  const shouldFade = chordChanged && !skipFade && area.innerHTML && !area.classList.contains('fading-out');
+  skipFade = false;
+
+  if (shouldFade) {
     area.classList.add('fading-out');
     setTimeout(doSwap, 140);
   } else {
