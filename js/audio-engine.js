@@ -84,9 +84,9 @@ export function ensureContext() {
 
 // Step 2: Build synths using the context we already created
 export function finishAudioSetup() {
-  if (audioReady) return;
+  if (audioReady) return true; // already set up
   if (!rawCtx) ensureContext();
-  if (!rawCtx) return;
+  if (!rawCtx) return false;
 
   try {
     Tone.setContext(rawCtx);

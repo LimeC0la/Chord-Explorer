@@ -37,25 +37,37 @@ if (getSelectedRoot() === null) {
   renderProgressions();
 }
 
-// ---- Audio unlock gestures ----
+// ---- Audio unlock + banner ----
+let bannerDismissed = false;
+
+function handleAudioUnlock() {
+  ensureContext();
+  const ok = finishAudioSetup();
+  if (ok && !bannerDismissed) {
+    bannerDismissed = true;
+    const btn = document.getElementById('audio-unlock-btn');
+    if (btn) btn.textContent = '\u2713 Sound On!';
+    setTimeout(() => {
+      const banner = document.getElementById('audio-unlock');
+      if (banner) banner.classList.add('hidden');
+    }, 600);
+  }
+  // Also run onUserGesture for pending plays / context resume
+  onUserGesture();
+  return ok;
+}
+
+// Listen for all gesture types
 ['click', 'touchstart', 'touchend', 'mousedown', 'keydown'].forEach(evt => {
-  document.addEventListener(evt, onUserGesture, { passive: true });
+  document.addEventListener(evt, handleAudioUnlock, { passive: true });
 });
 
-// ---- Explicit unlock button handler ----
+// Explicit unlock button — shows retry on failure
 const unlockBtn = document.getElementById('audio-unlock-btn');
 if (unlockBtn) {
   const doUnlock = () => {
-    ensureContext();
-    const ok = finishAudioSetup();
-    if (ok) {
-      const btn = document.getElementById('audio-unlock-btn');
-      if (btn) btn.textContent = '\u2713 Sound On!';
-      setTimeout(() => {
-        const banner = document.getElementById('audio-unlock');
-        if (banner) banner.classList.add('hidden');
-      }, 600);
-    } else {
+    const ok = handleAudioUnlock();
+    if (!ok) {
       const btn = document.getElementById('audio-unlock-btn');
       if (btn) {
         btn.textContent = 'Tap to Retry';
