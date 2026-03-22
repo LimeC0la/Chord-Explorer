@@ -37,53 +37,26 @@ if (getSelectedRoot() === null) {
   renderProgressions();
 }
 
-// ---- Audio unlock + banner ----
-let bannerDismissed = false;
-
-function handleAudioUnlock() {
+// ---- Lazy audio init on first user gesture ----
+// Browsers require a user gesture before AudioContext can start.
+// We silently set up audio on the first click/tap/key — no overlay needed.
+let audioInited = false;
+function lazyInitAudio() {
+  if (audioInited) return;
+  audioInited = true;
   ensureContext();
-  const ok = finishAudioSetup();
-  if (ok && !bannerDismissed) {
-    bannerDismissed = true;
-    const btn = document.getElementById('audio-unlock-btn');
-    if (btn) btn.textContent = '\u2713 Sound On!';
-    setTimeout(() => {
-      const banner = document.getElementById('audio-unlock');
-      if (banner) banner.classList.add('hidden');
-    }, 600);
-  }
-  // Also run onUserGesture for pending plays / context resume
-  onUserGesture();
-  return ok;
+  finishAudioSetup();
+  // Remove listeners once audio is ready
+  ['click', 'touchstart', 'touchend', 'mousedown', 'keydown'].forEach(evt => {
+    document.removeEventListener(evt, lazyInitAudio, true);
+  });
 }
-
-// Listen for all gesture types
 ['click', 'touchstart', 'touchend', 'mousedown', 'keydown'].forEach(evt => {
-  document.addEventListener(evt, handleAudioUnlock, { passive: true });
+  document.addEventListener(evt, lazyInitAudio, { capture: true, passive: true });
 });
-
-// Explicit unlock button — shows retry on failure
-const unlockBtn = document.getElementById('audio-unlock-btn');
-if (unlockBtn) {
-  const doUnlock = () => {
-    const ok = handleAudioUnlock();
-    if (!ok) {
-      const btn = document.getElementById('audio-unlock-btn');
-      if (btn) {
-        btn.textContent = 'Tap to Retry';
-        btn.style.background = '#c0392b';
-      }
-    }
-  };
-  unlockBtn.addEventListener('click', doUnlock);
-  unlockBtn.addEventListener('touchend', doUnlock);
-}
 
 // ---- Event delegation ----
 document.addEventListener('click', function(e) {
-  // Ignore clicks inside the audio unlock overlay
-  if (e.target.closest('.audio-unlock')) return;
-
   // Play button
   const playBtn = e.target.closest('.play-btn');
   if (playBtn) {
