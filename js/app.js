@@ -61,8 +61,10 @@ let audioInited = false;
 function lazyInitAudio() {
   if (audioInited) return;
   audioInited = true;
+  // Create context synchronously (must happen in gesture handler)
   ensureContext();
-  finishAudioSetup();
+  // Defer heavy synth setup so it doesn't block the current click
+  setTimeout(() => finishAudioSetup(), 0);
   ['click', 'touchstart', 'touchend', 'mousedown', 'keydown'].forEach(evt => {
     document.removeEventListener(evt, lazyInitAudio, true);
   });
