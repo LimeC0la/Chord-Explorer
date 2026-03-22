@@ -123,7 +123,11 @@
 
   /* Settings tab - always open panel */
   .settings-tab-panel { border: none; margin: 0; }
-  .settings-tab-panel .sound-panel-body { display: block !important; }
+  .settings-tab-panel .sound-panel-body {
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 1.2rem 1.2rem !important;
+  }
   .sp-section-title {
     font-family: 'Lora', serif;
     font-size: 0.95rem;
