@@ -1,6 +1,7 @@
 # Chord Explorer — Code Map
 
-Quick-reference for every file, function, constant, and CSS section in the project.
+Quick-reference for every file, function, constant, and CSS section.
+**Keep this updated when adding/modifying files, functions, or sections.**
 
 ---
 
@@ -9,36 +10,54 @@ Quick-reference for every file, function, constant, and CSS section in the proje
 | Line | Section |
 |------|---------|
 | 1-8 | HEAD (meta, stylesheet link) |
-| 11 | Theme toggle button |
+| 11-12 | Theme toggle button |
 | 14-15 | Title + tagline |
-| 18-27 | Picker section (root, type, circle of fifths container) |
-| 30 | `#progressions-area` (rendered dynamically) |
-| 33 | `#sequence-area` (rendered dynamically) |
-| 36-39 | Sample loading indicator |
-| 42 | `#listener-area` (chord listener, rendered dynamically) |
-| 44-97 | Sound settings panel (sliders, presets) |
-| 99-105 | `#result-area` (main chord display) |
-| 108-119 | AudioWorklet patch script |
-| 121 | Tone.js CDN |
-| 122 | `<script type="module" src="js/app.js">` |
+| 18-24 | Picker section (root + type pickers, always visible) |
+| 27-34 | Desktop tab bar (Explorer, Sequence, Listener, Settings) |
+| 37-57 | Tab content panels |
+| 38-47 | `#tab-explorer` (circle of fifths, progressions, result area) |
+| 49-62 | `#tab-sequence` (own chord picker + sequence area) |
+| 64-66 | `#tab-listener` (listener area) |
+| 68-97 | `#tab-settings` (sound sliders, presets — always open) |
+| 100-115 | Mobile bottom tab bar (fixed, native app style) |
+| 118-121 | Sample loading indicator (fixed position, global) |
+| 123-131 | AudioWorklet patch script |
+| 132 | Tone.js CDN |
+| 133 | `<script type="module" src="js/app.js">` |
+
+---
+
+## js/tabs.js — Tab system
+
+| Line | Export | Purpose |
+|------|--------|---------|
+| 8 | `switchTab(tabId)` | Switches active tab panel + button states |
+| 35 | `getActiveTab()` | Returns active tab ID string |
+
+Tab IDs: `'explorer'`, `'sequence'`, `'listener'`, `'settings'`
 
 ---
 
 ## js/app.js — Entry point & event delegation
 
-*Imports from: ui.js, audio-engine.js, sequence.js, listener/listener-ui.js*
+*Imports from: ui.js, audio-engine.js, sequence.js, listener/listener-ui.js, tabs.js*
 
 | Line | Function / Section | Purpose |
 |------|----------|---------|
-| 30-31 | `buildPickers()`, `buildPresetButtons()` | Initial UI setup |
-| 41 | `restoreFromURL()` | Restore state from URL hash |
-| 50 | `renderSequence()` | Initial sequence render |
-| 53 | `renderListenerPanel()` | Initial listener panel render |
-| 55 | `lazyInitAudio()` | Creates AudioContext on first user gesture |
-| 68 | `checkReplaceMode()` | After picker click, replaces selected sequence chord |
-| 79+ | click delegation | Routes all clicks by `data-*` attributes |
-| 204+ | drag delegation | HTML5 drag + touch drag for sequence reorder |
-| 234+ | slider input delegation | Sound setting slider changes |
+| 38-40 | `buildPickers()`, `buildSequencePicker()`, `buildPresetButtons()` | Initial UI setup |
+| 52 | `restoreFromURL()` | Restore state from URL hash |
+| 58 | `renderSequence()` | Initial sequence render |
+| 61 | `renderListenerPanel()` | Initial listener panel render |
+| 64 | `lazyInitAudio()` | Creates AudioContext on first user gesture (deferred synth setup) |
+| 79-80 | `seqPickerRoot`, `seqPickerType` | Sequence picker state (independent from explorer) |
+| 82 | `updateSeqAddBtn()` | Enable/disable sequence add button |
+| 86+ | click delegation | Routes all clicks by `data-*` attributes |
+| 88-91 | tab switching | `[data-tab]` clicks → `switchTab()` |
+| 99-122 | sequence picker | `#seq-root-picker` / `#seq-type-picker` pill clicks |
+| 125+ | sequence actions | `[data-seq-action]` routing |
+| 160+ | explorer pickers | `#root-picker` / `#type-picker` pill clicks |
+| 222+ | drag delegation | HTML5 drag + touch drag for sequence reorder |
+| 252+ | slider input delegation | Sound setting slider changes |
 
 ---
 
@@ -53,7 +72,7 @@ Quick-reference for every file, function, constant, and CSS section in the proje
 | 6 | `SHARP_DISPLAY` | Sharp display names |
 | 9 | `FLAT_ROOTS` | Set of root indices that use flats |
 | 11 | `ROOTS` | 12 root objects `{name, semi}` |
-| 27 | `CHORD_TYPES` | 19 chord type definitions `{id, name, intervals, semitones}` |
+| 27 | `CHORD_TYPES` | 19 chord type definitions `{id, label, intervals, formula, intervalNames}` |
 | 50 | `CHORD_SYMBOLS` | Display symbols per chord type |
 | 58 | `INVERSION_NAMES` | `['Root position', '1st inversion', ...]` |
 | 61 | `MAJOR_SCALE` | `[0, 2, 4, 5, 7, 9, 11]` |
@@ -77,6 +96,8 @@ Quick-reference for every file, function, constant, and CSS section in the proje
 ---
 
 ## js/ui.js — State, rendering, DOM
+
+*Imports from: music-theory.js, fretboard.js, sound-presets.js, audio-engine.js, tabs.js*
 
 ### State variables
 
@@ -102,22 +123,23 @@ Quick-reference for every file, function, constant, and CSS section in the proje
 | 163 | `setProgMode(mode)` | Toggle major/minor progressions |
 | 168 | `renderProgressions()` | Diatonic chord pills |
 | 212 | `renderCircleOfFifths()` | SVG circle of fifths |
-| 268 | `buildPickers()` | Root + type pill rows |
-| 292 | `buildPresetButtons()` | Sound preset buttons |
-| 307 | `setInstrument(mode)` | Switch piano/guitar/uke |
-| 317 | `toggleSoundPanel()` | Expand/collapse sound settings |
-| 321 | `applyPreset(name)` | Apply a sound preset |
-| 343 | `onSoundChange()` | Read sliders, update audio params |
-| 382 | `navigateToChord(root, type)` | Set state + render (related chords, progressions) |
-| 393 | `selectRoot(i)` | Root picker click |
-| 400 | `selectType(i)` | Type picker click |
-| 407 | `selectInv(i)` | Inversion click |
-| 412 | `transpose(semitones)` | Shift root by interval (no fade) |
-| 421 | `renderResult()` | **Main render** — builds result HTML, piano, diagram |
-| 593 | `restoreFromURL()` | Parse hash on load |
-| 611 | `toggleDark()` | Theme toggle |
-| 621 | `cofClick(rootIdx)` | Circle of fifths click |
-| 633 | `showLoadingIndicator()` | Sample loading bar |
+| 268 | `buildPickers()` | Root + type pill rows (explorer) |
+| 290 | `buildSequencePicker()` | Root + type pill rows (sequence tab, `data-seq-*` attributes) |
+| 310 | `buildPresetButtons()` | Sound preset buttons |
+| 325 | `setInstrument(mode)` | Switch piano/guitar/uke |
+| 335 | `toggleSoundPanel()` | Expand/collapse sound settings |
+| 339 | `applyPreset(name)` | Apply a sound preset |
+| 361 | `onSoundChange()` | Read sliders, update audio params |
+| 400 | `navigateToChord(root, type)` | Set state + switch to Explorer tab + render |
+| 411 | `selectRoot(i)` | Root picker click |
+| 418 | `selectType(i)` | Type picker click |
+| 425 | `selectInv(i)` | Inversion click |
+| 430 | `transpose(semitones)` | Shift root by interval (no fade) |
+| 439 | `renderResult()` | **Main render** — builds result HTML, piano, diagram |
+| 606 | `restoreFromURL()` | Parse hash on load |
+| 624 | `toggleDark()` | Theme toggle |
+| 634 | `cofClick(rootIdx)` | Circle of fifths click |
+| 646 | `showLoadingIndicator()` | Sample loading bar |
 
 ### Internal functions
 
@@ -126,7 +148,7 @@ Quick-reference for every file, function, constant, and CSS section in the proje
 | 32 | `renderPiano(container, voicedSemis, rootSemi)` | Draws 2-octave piano with octave-aware voicing |
 | 116 | `getRelatedChords(rootIdx, typeIdx)` | Finds chords sharing 2+ notes |
 | 141 | `renderRelatedChords(rootIdx, typeIdx)` | HTML for related chords |
-| 588 | `updateURL()` | Hash state sync |
+| 601 | `updateURL()` | Hash state sync |
 
 ---
 
@@ -233,56 +255,57 @@ Quick-reference for every file, function, constant, and CSS section in the proje
 
 | Line | Export | Purpose |
 |------|--------|---------|
-| 18 | `yin(buffer, sampleRate, threshold)` | Estimates fundamental frequency from time-domain audio. Returns `{frequency, confidence}` or `null` |
+| 18 | `yin(buffer, sampleRate, threshold)` | Estimates fundamental frequency. Returns `{frequency, confidence}` or `null` |
 
-Algorithm steps: difference function → cumulative mean normalised difference → absolute threshold → parabolic interpolation → frequency/confidence.
-
-Detection range: ~75Hz (guitar low E) to ~2000Hz.
+Algorithm: difference → cumulative mean normalised difference → absolute threshold → parabolic interpolation.
+Detection range: ~75Hz–2000Hz.
 
 ### js/listener/mic-manager.js — Microphone access & AnalyserNode
 
 | Line | Export | Purpose |
 |------|--------|---------|
 | 14 | `class MicManager` | Manages mic stream lifecycle |
-| 41 | `.start()` | Requests mic, creates separate AudioContext + AnalyserNode (fftSize: 4096) |
+| 41 | `.start()` | Requests raw mic (no echo/noise/gain processing), creates separate AudioContext + AnalyserNode (fftSize: 4096) |
 | 85 | `.stop()` | Stops stream tracks, disconnects nodes, closes context |
-| 111 | `.getAnalyser()` | Returns AnalyserNode for pitch detection |
+| 111 | `.getAnalyser()` | Returns AnalyserNode |
 | 116 | `.getSampleRate()` | Returns context sample rate |
 | 121 | `.isActive()` | Boolean status |
 
-Key design: Uses a **separate AudioContext** from Tone.js to avoid Android audio routing conflicts. Analyser is NOT connected to destination (no mic feedback).
+Key: Separate AudioContext from Tone.js. Raw audio (echoCancellation/noiseSuppression/autoGainControl all disabled). Not connected to destination (no feedback).
 
 ### js/listener/note-accumulator.js — Rolling window note collector
 
-| Line | Export | Purpose |
-|------|--------|---------|
-| - | `class NoteAccumulator` | Collects pitch detections over a rolling time window |
-| - | `.addDetection(midi, confidence, timestamp)` | Records a detection, prunes old entries |
-| - | `.getActiveNotes()` | Returns `Set<number>` of pitch classes (0-11) with >= minHits detections |
-| - | `.reset()` | Clears all detections |
+| Export | Purpose |
+|--------|---------|
+| `class NoteAccumulator` | Collects pitch detections over rolling time window |
+| `.addDetection(midi, confidence, timestamp)` | Records detection, prunes old entries |
+| `.getActiveNotes()` | Returns `Set<number>` of pitch classes (0-11) with >= minHits |
+| `.reset()` | Clears all detections |
 
-Config: `windowMs: 600` (captures full strum), `minHits: 3` (filters noise).
+Config: `windowMs: 600`, `minHits: 3`.
 
 ### js/listener/chord-matcher.js — Note set → chord identification
 
+| Export | Purpose |
+|--------|---------|
+| `class ChordMatcher` | Pre-computes all root×type candidates, scores against detected notes |
+| `.match(activeNotes)` | Returns `{rootIdx, typeIdx, score, confidence, altMatch}` or `null` |
+
+Scoring: +2 hit, -1 missing, -0.5 extra, +1 root bonus. Min score ≥ 3. Stars: 1-4.
+
+### js/listener/listener-ui.js — Panel UI & detection loop
+
 | Line | Export | Purpose |
 |------|--------|---------|
-| - | `class ChordMatcher` | Pre-computes all root×type candidates, scores against detected notes |
-| - | `.match(activeNotes)` | Returns `{rootIdx, typeIdx, score, confidence, altMatch}` or `null` |
-
-Scoring: +2 per hit, -1 per missing, -0.5 per extra, +1 root bonus. Min score ≥ 3. Confidence mapped to 1-4 stars.
-
-### js/listener/listener-ui.js — Panel UI & animation loop
-
-| Line | Export | Purpose |
-|------|--------|---------|
-| 33 | `renderListenerPanel()` | Renders collapsible listener panel into `#listener-area` |
-| 65 | `toggleListenerPanel()` | Show/hide panel body |
+| 44 | `renderListenerPanel()` | Renders listener into `#listener-area` (no collapsible — has own tab) |
 | 77 | `toggleMic()` | Start/stop mic + detection loop |
-| 137 | `applyDetectedChord()` | Navigates explorer to detected chord |
-| 147 | `handleListenerClick(action)` | Routes `data-listener-action` clicks |
+| 149 | `applyHistoryChord(r, t)` | Navigate explorer to a history chord |
+| 155 | `clearHistory()` | Clear chord history log |
+| 167 | `handleListenerClick(action, target)` | Routes `data-listener-action` clicks |
 
-Internal: `listenLoop()` (rAF loop), `updateDisplay(match, activeNotes)`, `confidenceStars(n)`.
+Internal: `rms()`, `fftPeaks()` (polyphonic FFT peak detection), `listenLoop()` (rAF loop with amplitude gate + YIN + FFT), `updateDisplay()`, `logChord()`, `renderHistory()`, `confidenceStars()`.
+
+State: `chordHistory[]` (max 30), `lastLoggedChord`, `stableMatchStart`, `STABLE_MS: 400`, `AMP_GATE: 0.04`.
 
 ---
 
@@ -310,25 +333,27 @@ Internal: `listenLoop()` (rAF loop), `updateDisplay(match, activeNotes)`, `confi
 
 | Line | Section |
 |------|---------|
-| 30 | Picker |
-| 91 | Result Card |
-| 149 | Piano |
-| 225 | Inversions |
-| 289 | Difficulty Badge |
-| 339 | Error |
-| 346 | Callout |
-| 370 | Audio btn (Play) |
-| 391 | Transpose |
-| 466 | Sound Settings |
-| 636 | Instrument Toggle |
-| 668 | Chord Diagram |
-| 679 | Theme toggle |
-| 699 | Related Chords |
-| 754 | Dark Mode |
-| 873 | Progressions |
-| 976 | Sequence Builder |
-| 1188 | Circle of Fifths |
-| 1209 | Smooth Transitions |
-| 1219 | Sample Loading |
-| 1236 | Sampler Badge |
-| 1262 | Chord Listener Panel |
+| 5 | Body + page |
+| 12 | Tab System (desktop bar, panels, mobile bottom bar, sequence picker) |
+| 140 | Picker |
+| 200 | Result Card |
+| 260 | Piano |
+| 335 | Inversions |
+| 400 | Difficulty Badge |
+| 450 | Error |
+| 457 | Callout |
+| 480 | Audio btn (Play) |
+| 500 | Transpose |
+| 575 | Sound Settings |
+| 745 | Instrument Toggle |
+| 778 | Chord Diagram |
+| 790 | Theme toggle |
+| 810 | Related Chords |
+| 876 | Dark Mode (+ tab dark mode) |
+| 1000 | Progressions |
+| 1100 | Sequence Builder |
+| 1310 | Circle of Fifths |
+| 1330 | Smooth Transitions |
+| 1340 | Sample Loading (fixed toast) |
+| 1360 | Sampler Badge |
+| 1385 | Chord Listener Panel (level bar, history, live status) |
