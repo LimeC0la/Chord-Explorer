@@ -1377,6 +1377,38 @@
     50% { box-shadow: 0 0 0 8px rgba(192, 57, 43, 0); }
   }
 
+  /* Level meter — shows mic amplitude, gate threshold marker */
+  .listener-level-bar {
+    position: relative;
+    height: 6px;
+    background: #e8e4de;
+    border-radius: 3px;
+    margin-bottom: 0.6rem;
+    overflow: visible;
+  }
+
+  .listener-level-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: #b0a89e;
+    width: 0%;
+    transition: width 0.08s linear;
+  }
+
+  .listener-level-fill.active {
+    background: #6a50a0;
+  }
+
+  .listener-level-gate {
+    position: absolute;
+    top: -2px;
+    bottom: -2px;
+    width: 2px;
+    background: #c0392b;
+    border-radius: 1px;
+    opacity: 0.6;
+  }
+
   .listener-hint {
     font-size: 0.72rem;
     color: #b0a89e;
@@ -1466,6 +1498,9 @@
   .dark .listener-alt { color: #6a6080; }
   .dark .listener-footer { color: #4a4060; }
   .dark .listener-error { color: #e74c3c; }
+  .dark .listener-level-bar { background: #2e2a38; }
+  .dark .listener-level-fill { background: #4a4060; }
+  .dark .listener-level-fill.active { background: #8a70c0; }
   .dark .listener-result { background: #242028; border-color: #2e2a38; }
   .dark .listener-result .detected-chord { color: #e0d8f0; }
   .dark .listener-result .detected-notes { color: #a098b0; }

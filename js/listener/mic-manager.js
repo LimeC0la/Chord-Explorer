@@ -43,8 +43,18 @@ export class MicManager {
     if (this.active) return;
 
     try {
-      // 1. Request mic permission
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // 1. Request mic permission with raw audio (no voice processing)
+      //    Disabling echoCancellation, noiseSuppression, and autoGainControl
+      //    gives us the unprocessed signal — critical for instrument detection
+      //    because these filters are designed to isolate human voice and
+      //    actively suppress everything else (like a guitar strum nearby).
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        }
+      });
 
       // 2. Create a dedicated AudioContext for mic analysis
       this.ctx = new AudioContext();
