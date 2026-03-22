@@ -1211,6 +1211,10 @@
     transition: opacity 0.14s ease, transform 0.14s ease;
   }
 
+  #result-area.no-transition {
+    transition: none !important;
+  }
+
   #result-area.fading-out {
     opacity: 0;
     transform: translateY(6px);
@@ -1253,3 +1257,221 @@
     color: #66bb6a;
     border-color: #2e5a32;
   }
+
+  /* ---- Chord Listener Panel ---- */
+  .listener-panel {
+    background: #fff;
+    border: 1.5px solid #e8e4de;
+    border-radius: 14px;
+    padding: 0;
+    max-width: 700px;
+    margin: 0.8rem auto;
+    overflow: hidden;
+  }
+
+  .listener-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.7rem 1rem;
+    cursor: pointer;
+    user-select: none;
+    font-family: 'Lora', serif;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #3a3530;
+  }
+
+  .listener-header:hover { background: rgba(0,0,0,0.02); }
+
+  .listener-header-arrow {
+    transition: transform 0.2s ease;
+    font-size: 0.8rem;
+    color: #b0a89e;
+  }
+
+  .listener-body {
+    padding: 0.8rem 1rem 1rem;
+    border-top: 1px solid #e8e4de;
+  }
+
+  .listener-footer {
+    font-size: 0.68rem;
+    color: #b0a89e;
+    margin-top: 0.5rem;
+    line-height: 1.4;
+  }
+
+  .listener-detected {
+    padding: 0.3rem 0;
+  }
+
+  .listener-match-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .listener-chord-name {
+    font-family: 'Lora', serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #3a3530;
+  }
+
+  .listener-stars {
+    font-size: 0.9rem;
+    color: #d4a030;
+  }
+
+  .listener-notes {
+    font-size: 0.8rem;
+    color: #6a6560;
+    margin-top: 0.2rem;
+  }
+
+  .listener-heard {
+    font-size: 0.72rem;
+    color: #a09890;
+    margin-top: 0.4rem;
+  }
+
+  .listener-alt {
+    font-size: 0.72rem;
+    color: #a09890;
+    margin-top: 0.15rem;
+  }
+
+  .listener-error {
+    font-size: 0.82rem;
+    color: #c0392b;
+    margin: 0;
+  }
+
+  .mic-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #6a50a0;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 0.55rem 1.2rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    margin-bottom: 0.6rem;
+  }
+
+  .mic-btn:hover { background: #5a4090; }
+  .mic-btn:active { transform: scale(0.97); }
+
+  .mic-btn.listening {
+    background: #c0392b;
+    animation: mic-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(192, 57, 43, 0.4); }
+    50% { box-shadow: 0 0 0 8px rgba(192, 57, 43, 0); }
+  }
+
+  .listener-hint {
+    font-size: 0.72rem;
+    color: #b0a89e;
+    margin-top: 0.4rem;
+    line-height: 1.4;
+  }
+
+  .listener-result {
+    background: #f8f6f2;
+    border: 1px solid #e8e4de;
+    border-radius: 10px;
+    padding: 0.8rem 1rem;
+    margin: 0.6rem 0;
+    min-height: 60px;
+  }
+
+  .listener-result .detected-chord {
+    font-family: 'Lora', serif;
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: #3a3530;
+  }
+
+  .listener-result .confidence-stars {
+    font-size: 0.9rem;
+    color: #d4a030;
+    margin-left: 0.5rem;
+  }
+
+  .listener-result .detected-notes {
+    font-size: 0.8rem;
+    color: #6a6560;
+    margin-top: 0.2rem;
+  }
+
+  .listener-result .raw-notes {
+    font-size: 0.72rem;
+    color: #a09890;
+    margin-top: 0.4rem;
+  }
+
+  .listener-result .alt-match {
+    font-size: 0.72rem;
+    color: #a09890;
+    margin-top: 0.15rem;
+  }
+
+  .listener-result .listening-msg {
+    font-size: 0.85rem;
+    color: #a09890;
+    font-style: italic;
+  }
+
+  .listener-result .error-msg {
+    font-size: 0.82rem;
+    color: #c0392b;
+  }
+
+  .apply-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: #e8e4de;
+    color: #3a3530;
+    border: 1.5px solid #d8d4ce;
+    border-radius: 10px;
+    padding: 0.45rem 1rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-top: 0.3rem;
+  }
+
+  .apply-btn:hover { background: #d8d4ce; }
+  .apply-btn:disabled { opacity: 0.4; cursor: default; }
+
+  /* Dark mode listener */
+  .dark .listener-panel { background: #1a1820; border-color: #2e2a38; }
+  .dark .listener-header { color: #e0d8f0; }
+  .dark .listener-header:hover { background: rgba(255,255,255,0.03); }
+  .dark .listener-header-arrow { color: #6a6080; }
+  .dark .listener-body { border-top-color: #2e2a38; }
+  .dark .listener-chord-name { color: #e0d8f0; }
+  .dark .listener-notes { color: #a098b0; }
+  .dark .listener-heard { color: #6a6080; }
+  .dark .listener-alt { color: #6a6080; }
+  .dark .listener-footer { color: #4a4060; }
+  .dark .listener-error { color: #e74c3c; }
+  .dark .listener-result { background: #242028; border-color: #2e2a38; }
+  .dark .listener-result .detected-chord { color: #e0d8f0; }
+  .dark .listener-result .detected-notes { color: #a098b0; }
+  .dark .listener-result .raw-notes { color: #6a6080; }
+  .dark .listener-result .alt-match { color: #6a6080; }
+  .dark .listener-result .listening-msg { color: #6a6080; }
+  .dark .listener-result .error-msg { color: #e74c3c; }
+  .dark .apply-btn { background: #2a2630; color: #e0d8f0; border-color: #3a3648; }
+  .dark .apply-btn:hover { background: #3a3648; }

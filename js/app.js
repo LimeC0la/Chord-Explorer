@@ -23,6 +23,10 @@ import {
   onTouchStart, onTouchMove, onTouchEnd
 } from './sequence.js';
 
+import {
+  renderListenerPanel, handleListenerClick
+} from './listener/listener-ui.js';
+
 // ---- Wire up loading indicator ----
 setLoadProgressCallback(showLoadingIndicator);
 
@@ -48,6 +52,9 @@ if (getSelectedRoot() === null) {
 
 // ---- Initial sequence render ----
 renderSequence();
+
+// ---- Initial listener panel render ----
+renderListenerPanel();
 
 // ---- Lazy audio init on first user gesture ----
 let audioInited = false;
@@ -197,6 +204,13 @@ document.addEventListener('click', function(e) {
   const progBtn = e.target.closest('[data-prog-mode]');
   if (progBtn) {
     setProgMode(progBtn.dataset.progMode);
+    return;
+  }
+
+  // Listener panel actions
+  const listenerAction = e.target.closest('[data-listener-action]');
+  if (listenerAction) {
+    handleListenerClick(listenerAction.dataset.listenerAction);
     return;
   }
 }, { passive: false });

@@ -580,7 +580,11 @@ export function renderResult() {
     area.classList.add('fading-out');
     setTimeout(doSwap, 140);
   } else {
+    // Instant swap — disable CSS transitions so there's no flash
+    area.classList.add('no-transition');
     doSwap();
+    // Re-enable transitions after paint
+    requestAnimationFrame(() => area.classList.remove('no-transition'));
   }
 }
 
