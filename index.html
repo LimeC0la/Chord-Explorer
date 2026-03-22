@@ -14,16 +14,7 @@
   <h1>Chord Explorer</h1>
   <p class="tagline">Pick a root and chord type — see the notes, keyboard, and inversions</p>
 
-  <!-- Root + Type pickers — always visible -->
-  <div class="picker-section">
-    <div class="picker-label">Root Note</div>
-    <div class="pill-row" id="root-picker"></div>
-
-    <div class="picker-label">Chord Type</div>
-    <div class="pill-row" id="type-picker"></div>
-  </div>
-
-  <!-- Tab bar (desktop: horizontal below pickers, mobile: fixed bottom) -->
+  <!-- Tab bar (desktop: horizontal, mobile: fixed bottom) -->
   <div class="tab-bar" id="tab-bar">
     <button class="tab-btn active" data-tab="explorer">🎹 Explorer</button>
     <button class="tab-btn" data-tab="sequence">📋 Sequence</button>
@@ -35,6 +26,12 @@
   <div class="tab-content">
     <!-- Explorer tab -->
     <div class="tab-panel active" id="tab-explorer">
+      <div class="picker-section">
+        <div class="picker-label">Root Note</div>
+        <div class="pill-row" id="root-picker"></div>
+        <div class="picker-label">Chord Type</div>
+        <div class="pill-row" id="type-picker"></div>
+      </div>
       <div id="circle-of-fifths"></div>
       <div id="progressions-area"></div>
       <div id="result-area">
