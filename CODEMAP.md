@@ -15,24 +15,30 @@ Quick-reference for every file, function, constant, and CSS section in the proje
 | 30 | `#progressions-area` (rendered dynamically) |
 | 33 | `#sequence-area` (rendered dynamically) |
 | 36-39 | Sample loading indicator |
-| 42-94 | Sound settings panel (sliders, presets) |
-| 97-102 | `#result-area` (main chord display) |
-| 105-117 | AudioWorklet patch script |
-| 118 | Tone.js CDN |
-| 119 | `<script type="module" src="js/app.js">` |
+| 42 | `#listener-area` (chord listener, rendered dynamically) |
+| 44-97 | Sound settings panel (sliders, presets) |
+| 99-105 | `#result-area` (main chord display) |
+| 108-119 | AudioWorklet patch script |
+| 121 | Tone.js CDN |
+| 122 | `<script type="module" src="js/app.js">` |
 
 ---
 
 ## js/app.js — Entry point & event delegation
 
-*Imports from: ui.js, audio-engine.js, sequence.js*
+*Imports from: ui.js, audio-engine.js, sequence.js, listener/listener-ui.js*
 
-| Line | Function | Purpose |
+| Line | Function / Section | Purpose |
 |------|----------|---------|
-| 54 | `lazyInitAudio()` | Creates AudioContext on first user gesture |
+| 30-31 | `buildPickers()`, `buildPresetButtons()` | Initial UI setup |
+| 41 | `restoreFromURL()` | Restore state from URL hash |
+| 50 | `renderSequence()` | Initial sequence render |
+| 53 | `renderListenerPanel()` | Initial listener panel render |
+| 55 | `lazyInitAudio()` | Creates AudioContext on first user gesture |
 | 68 | `checkReplaceMode()` | After picker click, replaces selected sequence chord |
-| 78+ | click delegation | Routes all clicks by `data-*` attributes |
-| 186+ | drag delegation | HTML5 drag + touch drag for sequence reorder |
+| 79+ | click delegation | Routes all clicks by `data-*` attributes |
+| 204+ | drag delegation | HTML5 drag + touch drag for sequence reorder |
+| 234+ | slider input delegation | Sound setting slider changes |
 
 ---
 
@@ -117,7 +123,7 @@ Quick-reference for every file, function, constant, and CSS section in the proje
 
 | Line | Function | Purpose |
 |------|----------|---------|
-| 32 | `renderPiano(container, voicedSemis, rootSemi)` | Draws 2-octave piano |
+| 32 | `renderPiano(container, voicedSemis, rootSemi)` | Draws 2-octave piano with octave-aware voicing |
 | 116 | `getRelatedChords(rootIdx, typeIdx)` | Finds chords sharing 2+ notes |
 | 141 | `renderRelatedChords(rootIdx, typeIdx)` | HTML for related chords |
 | 588 | `updateURL()` | Hash state sync |
@@ -221,6 +227,65 @@ Quick-reference for every file, function, constant, and CSS section in the proje
 
 ---
 
+## js/listener/ — Chord Listener (mic-based chord detection)
+
+### js/listener/yin.js — YIN pitch detection algorithm
+
+| Line | Export | Purpose |
+|------|--------|---------|
+| 18 | `yin(buffer, sampleRate, threshold)` | Estimates fundamental frequency from time-domain audio. Returns `{frequency, confidence}` or `null` |
+
+Algorithm steps: difference function → cumulative mean normalised difference → absolute threshold → parabolic interpolation → frequency/confidence.
+
+Detection range: ~75Hz (guitar low E) to ~2000Hz.
+
+### js/listener/mic-manager.js — Microphone access & AnalyserNode
+
+| Line | Export | Purpose |
+|------|--------|---------|
+| 14 | `class MicManager` | Manages mic stream lifecycle |
+| 41 | `.start()` | Requests mic, creates separate AudioContext + AnalyserNode (fftSize: 4096) |
+| 85 | `.stop()` | Stops stream tracks, disconnects nodes, closes context |
+| 111 | `.getAnalyser()` | Returns AnalyserNode for pitch detection |
+| 116 | `.getSampleRate()` | Returns context sample rate |
+| 121 | `.isActive()` | Boolean status |
+
+Key design: Uses a **separate AudioContext** from Tone.js to avoid Android audio routing conflicts. Analyser is NOT connected to destination (no mic feedback).
+
+### js/listener/note-accumulator.js — Rolling window note collector
+
+| Line | Export | Purpose |
+|------|--------|---------|
+| - | `class NoteAccumulator` | Collects pitch detections over a rolling time window |
+| - | `.addDetection(midi, confidence, timestamp)` | Records a detection, prunes old entries |
+| - | `.getActiveNotes()` | Returns `Set<number>` of pitch classes (0-11) with >= minHits detections |
+| - | `.reset()` | Clears all detections |
+
+Config: `windowMs: 600` (captures full strum), `minHits: 3` (filters noise).
+
+### js/listener/chord-matcher.js — Note set → chord identification
+
+| Line | Export | Purpose |
+|------|--------|---------|
+| - | `class ChordMatcher` | Pre-computes all root×type candidates, scores against detected notes |
+| - | `.match(activeNotes)` | Returns `{rootIdx, typeIdx, score, confidence, altMatch}` or `null` |
+
+Scoring: +2 per hit, -1 per missing, -0.5 per extra, +1 root bonus. Min score ≥ 3. Confidence mapped to 1-4 stars.
+
+### js/listener/listener-ui.js — Panel UI & animation loop
+
+| Line | Export | Purpose |
+|------|--------|---------|
+| 33 | `renderListenerPanel()` | Renders collapsible listener panel into `#listener-area` |
+| 65 | `toggleListenerPanel()` | Show/hide panel body |
+| 77 | `toggleMic()` | Start/stop mic + detection loop |
+| 137 | `applyDetectedChord()` | Navigates explorer to detected chord |
+| 147 | `handleListenerClick(action)` | Routes `data-listener-action` clicks |
+
+Internal: `listenLoop()` (rAF loop), `updateDisplay(match, activeNotes)`, `confidenceStars(n)`.
+
+---
+
 ## js/fretboard.js — Guitar/uke voicing & diagrams
 
 | Line | Export | Purpose |
@@ -266,3 +331,4 @@ Quick-reference for every file, function, constant, and CSS section in the proje
 | 1209 | Smooth Transitions |
 | 1219 | Sample Loading |
 | 1236 | Sampler Badge |
+| 1262 | Chord Listener Panel |
