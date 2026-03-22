@@ -46,14 +46,9 @@ const SAMPLE_MAPS = {
       'G2': 'G2.mp3', 'G3': 'G3.mp3', 'G4': 'G4.mp3',
     },
   },
-  ukulele: {
-    url: SAMPLE_BASE + 'guitar-nylon/',
-    notes: {
-      'A3': 'A3.mp3', 'A4': 'A4.mp3', 'A5': 'A5.mp3',
-      'C3': 'C3.mp3', 'C4': 'C4.mp3', 'C5': 'C5.mp3',
-      'E3': 'E3.mp3', 'E4': 'E4.mp3', 'E5': 'E5.mp3',
-    },
-  },
+  // Ukulele reuses the guitar-nylon sampler (loaded once, shared).
+  // Playback pitches notes up an octave + shorter duration for uke character.
+  ukulele: null, // signals "reuse guitar-nylon"
 };
 
 // ---- Public API ----
@@ -64,9 +59,10 @@ export function setLoadProgressCallback(cb) { onLoadProgress = cb; }
 
 export function setCurrentInstrument(inst) {
   currentInstrument = inst;
-  // Start loading samples for this instrument if not already
-  if (audioReady && !samplerReady[inst] && !samplers[inst]) {
-    loadSampler(inst);
+  // Ukulele shares the guitar-nylon sampler
+  const loadTarget = inst === 'ukulele' ? 'guitar' : inst;
+  if (audioReady && !samplerReady[loadTarget] && !samplers[loadTarget]) {
+    loadSampler(loadTarget);
   }
 }
 
@@ -95,7 +91,9 @@ export function finishAudioSetup() {
     audioReady = true;
 
     // Start loading samples for current instrument in background
-    loadSampler(currentInstrument);
+    // Ukulele shares guitar-nylon, so load that instead
+    const loadTarget = currentInstrument === 'ukulele' ? 'guitar' : currentInstrument;
+    loadSampler(loadTarget);
 
     return true; // success
   } catch (e) {
@@ -302,22 +300,28 @@ function doPlayNotes(semis) {
     rawCtx.resume();
   }
 
-  // Build note names with proper voicing (ascending from C4)
+  // Build note names with proper voicing
+  // Ukulele: pitch up an octave (C5 base instead of C4) for bright uke character
+  const isUke = currentInstrument === 'ukulele';
+  const baseMidi = isUke ? 72 : 60; // C5 for uke, C4 for others
+  const duration = isUke ? '4n' : '1.5n'; // shorter sustain for uke pluck
+
   const toneNotes = [];
   let lastMidi = -1;
   semis.forEach((s) => {
-    let midi = 60 + (s % 12);
+    let midi = baseMidi + (s % 12);
     if (midi <= lastMidi) midi += 12;
     lastMidi = midi;
     toneNotes.push(midiToNoteName(midi));
   });
 
-  // If sampler is ready for current instrument, use it
-  if (samplerReady[currentInstrument] && samplers[currentInstrument]) {
-    const sampler = samplers[currentInstrument];
+  // Resolve sampler — ukulele shares the guitar sampler
+  const samplerKey = isUke ? 'guitar' : currentInstrument;
+  if (samplerReady[samplerKey] && samplers[samplerKey]) {
+    const sampler = samplers[samplerKey];
     sampler.releaseAll();
     toneNotes.forEach(note => {
-      sampler.triggerAttackRelease(note, '1.5n');
+      sampler.triggerAttackRelease(note, duration);
     });
   } else {
     // Fall back to synth layers
@@ -332,5 +336,6 @@ function doPlayNotes(semis) {
 
 // Check if sampler is loaded for an instrument
 export function isSamplerReady(instrument) {
+  if (instrument === 'ukulele') return !!samplerReady['guitar'];
   return !!samplerReady[instrument];
 }
