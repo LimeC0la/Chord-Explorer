@@ -24,7 +24,7 @@ export class ChordMatcher {
 
     for (let r = 0; r < ROOTS.length; r++) {
       for (let t = 0; t < CHORD_TYPES.length; t++) {
-        const semis = CHORD_TYPES[t].semitones;
+        const semis = CHORD_TYPES[t].intervals;
         const rootSemi = ROOTS[r].semi;
         const pitchClasses = new Set(semis.map(s => (rootSemi + s) % 12));
         this.candidates.push({ rootIdx: r, typeIdx: t, pitchClasses });
