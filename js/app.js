@@ -6,13 +6,22 @@ import {
   renderCircleOfFifths, restoreFromURL, toggleDark, toggleSoundPanel,
   setInstrument, applyPreset, onSoundChange, navigateToChord,
   selectRoot, selectType, selectInv, transpose, cofClick,
-  setProgMode, showLoadingIndicator, getSelectedRoot
+  setProgMode, showLoadingIndicator, getSelectedRoot, getSelectedType
 } from './ui.js';
 
 import {
   ensureContext, finishAudioSetup, onUserGesture, playNotes,
   setLoadProgressCallback
 } from './audio-engine.js';
+
+import {
+  addChord, removeChord, replaceChord, clearSequence,
+  undo, redo, playAll, stopPlayback,
+  setSelectedSeqIdx, isSequenceSelecting, getSelectedSeqIdx,
+  renderSequence,
+  onDragStart, onDragOver, onDrop, onDragEnd,
+  onTouchStart, onTouchMove, onTouchEnd
+} from './sequence.js';
 
 // ---- Wire up loading indicator ----
 setLoadProgressCallback(showLoadingIndicator);
@@ -37,16 +46,16 @@ if (getSelectedRoot() === null) {
   renderProgressions();
 }
 
+// ---- Initial sequence render ----
+renderSequence();
+
 // ---- Lazy audio init on first user gesture ----
-// Browsers require a user gesture before AudioContext can start.
-// We silently set up audio on the first click/tap/key — no overlay needed.
 let audioInited = false;
 function lazyInitAudio() {
   if (audioInited) return;
   audioInited = true;
   ensureContext();
   finishAudioSetup();
-  // Remove listeners once audio is ready
   ['click', 'touchstart', 'touchend', 'mousedown', 'keydown'].forEach(evt => {
     document.removeEventListener(evt, lazyInitAudio, true);
   });
@@ -54,6 +63,17 @@ function lazyInitAudio() {
 ['click', 'touchstart', 'touchend', 'mousedown', 'keydown'].forEach(evt => {
   document.addEventListener(evt, lazyInitAudio, { capture: true, passive: true });
 });
+
+// ---- Helper: after root/type selection, handle replace mode ----
+function checkReplaceMode() {
+  if (isSequenceSelecting()) {
+    const root = getSelectedRoot();
+    const type = getSelectedType();
+    if (root !== null && type !== null) {
+      replaceChord(getSelectedSeqIdx(), root, type);
+    }
+  }
+}
 
 // ---- Event delegation ----
 document.addEventListener('click', function(e) {
@@ -68,10 +88,44 @@ document.addEventListener('click', function(e) {
     return;
   }
 
+  // ---- Sequence actions ----
+  const seqAction = e.target.closest('[data-seq-action]');
+  if (seqAction) {
+    const action = seqAction.dataset.seqAction;
+    if (action === 'add') {
+      const root = getSelectedRoot();
+      const type = getSelectedType();
+      if (root !== null && type !== null) {
+        addChord(root, type);
+      }
+    } else if (action === 'undo') { undo(); }
+    else if (action === 'redo') { redo(); }
+    else if (action === 'clear') { clearSequence(); }
+    else if (action === 'play-all') { playAll(); }
+    else if (action === 'stop') { stopPlayback(); }
+    else if (action === 'cancel-replace') { setSelectedSeqIdx(null); }
+    return;
+  }
+
+  // Sequence chip remove button
+  const seqRemove = e.target.closest('[data-seq-remove]');
+  if (seqRemove) {
+    removeChord(parseInt(seqRemove.dataset.seqRemove));
+    return;
+  }
+
+  // Sequence chip click (select for replacement)
+  const seqChip = e.target.closest('.seq-chip[data-seq-idx]');
+  if (seqChip && !e.target.closest('[data-seq-remove]')) {
+    setSelectedSeqIdx(parseInt(seqChip.dataset.seqIdx));
+    return;
+  }
+
   // Root picker pill
   const rootPill = e.target.closest('#root-picker .pill');
   if (rootPill && rootPill.dataset.rootIdx !== undefined) {
     selectRoot(parseInt(rootPill.dataset.rootIdx));
+    checkReplaceMode();
     return;
   }
 
@@ -79,6 +133,7 @@ document.addEventListener('click', function(e) {
   const typePill = e.target.closest('#type-picker .pill');
   if (typePill && typePill.dataset.typeIdx !== undefined) {
     selectType(parseInt(typePill.dataset.typeIdx));
+    checkReplaceMode();
     return;
   }
 
@@ -145,6 +200,35 @@ document.addEventListener('click', function(e) {
     return;
   }
 }, { passive: false });
+
+// ---- Drag-and-drop delegation (HTML5 + touch) ----
+document.addEventListener('dragstart', function(e) {
+  const chip = e.target.closest('.seq-chip[data-seq-idx]');
+  if (chip) onDragStart(e, parseInt(chip.dataset.seqIdx));
+});
+document.addEventListener('dragover', function(e) {
+  if (e.target.closest('.seq-chips')) onDragOver(e);
+});
+document.addEventListener('drop', function(e) {
+  if (e.target.closest('.seq-chips')) onDrop(e);
+});
+document.addEventListener('dragend', function(e) {
+  onDragEnd();
+});
+
+// Touch drag for mobile
+document.addEventListener('touchstart', function(e) {
+  const chip = e.target.closest('.seq-chip[data-seq-idx]');
+  if (chip && !e.target.closest('[data-seq-remove]')) {
+    onTouchStart(e, parseInt(chip.dataset.seqIdx));
+  }
+}, { passive: true });
+document.addEventListener('touchmove', function(e) {
+  onTouchMove(e);
+}, { passive: false });
+document.addEventListener('touchend', function(e) {
+  onTouchEnd(e);
+}, { passive: true });
 
 // ---- Slider input events ----
 document.addEventListener('input', function(e) {

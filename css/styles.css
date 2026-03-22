@@ -973,6 +973,218 @@
   .dark .prog-pill.active .prog-chord { color: #fff; }
   .dark .prog-label { color: #7a7090; }
 
+  /* ---- Sequence Builder ---- */
+  .seq-section {
+    background: #fff;
+    border: 1.5px solid #e8e4de;
+    border-radius: 14px;
+    padding: 1.2rem;
+    margin-bottom: 1.4rem;
+  }
+
+  .seq-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.7rem;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .seq-title {
+    font-family: 'Lora', serif;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: #3a3530;
+  }
+
+  .seq-actions {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+  }
+
+  .seq-btn {
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.3rem 0.55rem;
+    border: 1.5px solid #e0dbd4;
+    border-radius: 7px;
+    background: #faf8f5;
+    color: #5a5550;
+    cursor: pointer;
+    transition: all 0.18s;
+    user-select: none;
+  }
+
+  .seq-btn:hover:not(:disabled) { border-color: #c5b8d8; background: #f8f5ff; }
+  .seq-btn:disabled { opacity: 0.35; cursor: default; }
+
+  .seq-play-btn {
+    background: #6a50a0;
+    color: #fff;
+    border-color: #6a50a0;
+  }
+  .seq-play-btn:hover:not(:disabled) { background: #5a4090; border-color: #5a4090; }
+
+  .seq-stop-btn {
+    background: #c0392b;
+    color: #fff;
+    border-color: #c0392b;
+  }
+  .seq-stop-btn:hover { background: #a93226; border-color: #a93226; }
+
+  .seq-replace-banner {
+    font-size: 0.76rem;
+    color: #6a50a0;
+    background: #f3eef8;
+    border: 1.5px solid #d8cef0;
+    border-radius: 8px;
+    padding: 0.4rem 0.7rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .seq-cancel-btn {
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #6a50a0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 0;
+  }
+
+  .seq-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    min-height: 2.6rem;
+    margin-bottom: 0.7rem;
+  }
+
+  .seq-empty {
+    font-size: 0.78rem;
+    color: #b0a8a0;
+    padding: 0.4rem 0;
+  }
+
+  .seq-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.35rem 0.45rem 0.35rem 0.5rem;
+    border-radius: 8px;
+    border: 1.5px solid #e0dbd4;
+    background: #faf8f5;
+    cursor: grab;
+    transition: all 0.18s;
+    user-select: none;
+    position: relative;
+  }
+
+  .seq-chip:hover { border-color: #c5b8d8; background: #f8f5ff; }
+  .seq-chip:active { cursor: grabbing; }
+
+  .seq-chip.selected {
+    border-color: #6a50a0;
+    background: #f3eef8;
+    box-shadow: 0 0 0 2px rgba(106, 80, 160, 0.2);
+  }
+
+  .seq-chip.playing {
+    border-color: #6a50a0;
+    background: #ece4f8;
+    animation: seq-pulse 0.4s ease-in-out;
+  }
+
+  .seq-chip.dragging {
+    opacity: 0.35;
+  }
+
+  .seq-chip.drag-over-left {
+    box-shadow: -3px 0 0 0 #6a50a0;
+  }
+  .seq-chip.drag-over-right {
+    box-shadow: 3px 0 0 0 #6a50a0;
+  }
+
+  .touch-drag-clone {
+    opacity: 0.85;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+    border-color: #6a50a0 !important;
+  }
+
+  @keyframes seq-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(106, 80, 160, 0.4); }
+    50% { box-shadow: 0 0 0 6px rgba(106, 80, 160, 0); }
+  }
+
+  .seq-chip-num {
+    font-size: 0.58rem;
+    font-weight: 800;
+    color: #b0a8a0;
+    min-width: 1em;
+    text-align: center;
+  }
+
+  .seq-chip-name {
+    font-family: 'Lora', serif;
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: #3a3530;
+  }
+
+  .seq-chip-remove {
+    font-size: 0.85rem;
+    color: #c0b8b0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0 0.15rem;
+    line-height: 1;
+    transition: color 0.15s;
+  }
+  .seq-chip-remove:hover { color: #c0392b; }
+
+  .seq-add-btn {
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #6a50a0;
+    background: #f3eef8;
+    border: 1.5px dashed #d0c4e0;
+    border-radius: 8px;
+    padding: 0.4rem 0.9rem;
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+  .seq-add-btn:hover { background: #ece4f4; border-color: #6a50a0; }
+
+  /* Dark mode sequence builder */
+  .dark .seq-section { background: #242028; border-color: #3a3540; }
+  .dark .seq-title { color: #e0d8f0; }
+  .dark .seq-btn { background: #1e1c28; border-color: #3a3540; color: #a098b0; }
+  .dark .seq-btn:hover:not(:disabled) { border-color: #8a6cc8; background: #262038; }
+  .dark .seq-play-btn { background: #6a50a0; color: #fff; border-color: #6a50a0; }
+  .dark .seq-play-btn:hover:not(:disabled) { background: #5a4090; border-color: #5a4090; }
+  .dark .seq-stop-btn { background: #c0392b; border-color: #c0392b; }
+  .dark .seq-replace-banner { background: #2a2640; border-color: #4a4068; color: #b0a0d0; }
+  .dark .seq-cancel-btn { color: #b0a0d0; }
+  .dark .seq-empty { color: #5a5068; }
+  .dark .seq-chip { background: #1e1c28; border-color: #3a3540; }
+  .dark .seq-chip:hover { border-color: #8a6cc8; background: #262038; }
+  .dark .seq-chip.selected { border-color: #6a50a0; background: #2a2640; box-shadow: 0 0 0 2px rgba(106, 80, 160, 0.3); }
+  .dark .seq-chip.playing { border-color: #6a50a0; background: #302848; }
+  .dark .seq-chip-num { color: #5a5068; }
+  .dark .seq-chip-name { color: #d0c8e8; }
+  .dark .seq-chip-remove { color: #5a5068; }
+  .dark .seq-chip-remove:hover { color: #e74c3c; }
+  .dark .seq-add-btn { background: #2a2640; border-color: #4a4068; color: #b0a0d0; }
+  .dark .seq-add-btn:hover { background: #302848; border-color: #6a50a0; }
+
   /* ---- Circle of Fifths ---- */
   .cof-wrap {
     display: flex;
