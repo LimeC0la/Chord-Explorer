@@ -26,6 +26,13 @@ let freqBuffer = null;       // Float32Array, reused for FFT
 let currentMatch = null;     // Last displayed match
 let panelExpanded = false;   // Collapse state
 
+// Chord history log — newest first, capped at MAX_HISTORY
+let chordHistory = [];
+const MAX_HISTORY = 30;
+let lastLoggedChord = null;  // Key string for dedup ("0-0" = C maj)
+let stableMatchStart = 0;   // When the current match first appeared
+const STABLE_MS = 400;      // Must be stable this long to log
+
 // Amplitude gate — ignore signals quieter than this (filters out speech/ambient)
 const AMP_GATE = 0.04;
 
@@ -45,9 +52,15 @@ export function renderListenerPanel() {
         <span class="listener-header-arrow" id="listener-arrow">\u25BC</span>
       </div>
       <div class="listener-body" id="listener-body" style="display:none;">
-        <button class="mic-btn" id="listener-mic-btn" data-listener-action="toggle-mic">
-          \uD83C\uDFA4 Start Listening
-        </button>
+        <div class="listener-controls">
+          <button class="mic-btn" id="listener-mic-btn" data-listener-action="toggle-mic">
+            \uD83C\uDFA4 Start Listening
+          </button>
+          <button class="listener-clear-btn" id="listener-clear-btn"
+                  data-listener-action="clear-history" style="display:none;">
+            Clear
+          </button>
+        </div>
 
         <div class="listener-level-bar" id="listener-level-bar">
           <div class="listener-level-fill" id="listener-level-fill"></div>
@@ -55,16 +68,16 @@ export function renderListenerPanel() {
                title="Minimum level to detect"></div>
         </div>
 
-        <div id="listener-result" class="listener-result">
-          <p class="listener-hint">Play a chord and I'll try to identify it</p>
+        <div id="listener-current" class="listener-current">
+          <p class="listener-hint" id="listener-status">Play a chord and I'll try to identify it</p>
         </div>
 
-        <button class="apply-btn" id="listener-apply-btn"
-                data-listener-action="apply-detected-chord" disabled>
-          Apply to Explorer
-        </button>
+        <div class="listener-history-container" id="listener-history-container" style="display:none;">
+          <div class="listener-history-label">Detected chords</div>
+          <div class="listener-history" id="listener-history"></div>
+        </div>
 
-        <p class="listener-footer">Works with your instrument or any audio source</p>
+        <p class="listener-footer">Strum or play a chord \u2014 sustained matches are logged below</p>
       </div>
     </div>`;
 }
@@ -101,12 +114,10 @@ export async function toggleMic() {
       btn.classList.remove('listening');
     }
     currentMatch = null;
-    const result = document.getElementById('listener-result');
-    if (result) {
-      result.innerHTML = '<p class="listener-hint">Play a chord and I\'ll try to identify it</p>';
-    }
-    const applyBtn = document.getElementById('listener-apply-btn');
-    if (applyBtn) applyBtn.disabled = true;
+    lastLoggedChord = null;
+    stableMatchStart = 0;
+    const status = document.getElementById('listener-status');
+    if (status) status.textContent = 'Stopped \u2014 history preserved';
     return;
   }
 
@@ -135,28 +146,41 @@ export async function toggleMic() {
     btn.classList.add('listening');
   }
 
-  const result = document.getElementById('listener-result');
-  if (result) {
-    result.innerHTML = '<p class="listener-hint">Listening\u2026</p>';
-  }
+  const status = document.getElementById('listener-status');
+  if (status) status.textContent = 'Listening\u2026';
+  lastLoggedChord = null;
+  stableMatchStart = 0;
 
   listenLoop();
 }
 
 /**
- * If a chord has been detected, navigate the explorer to it.
+ * Navigate to a chord from the history list.
  */
-export function applyDetectedChord() {
-  if (currentMatch) {
-    navigateToChord(currentMatch.rootIdx, currentMatch.typeIdx);
-  }
+export function applyHistoryChord(rootIdx, typeIdx) {
+  navigateToChord(rootIdx, typeIdx);
+}
+
+/**
+ * Clear the chord history log.
+ */
+export function clearHistory() {
+  chordHistory = [];
+  lastLoggedChord = null;
+  stableMatchStart = 0;
+  renderHistory();
+  const container = document.getElementById('listener-history-container');
+  if (container) container.style.display = 'none';
+  const clearBtn = document.getElementById('listener-clear-btn');
+  if (clearBtn) clearBtn.style.display = 'none';
 }
 
 /**
  * Route a click action from the panel's data-action attributes.
  * @param {string} action
+ * @param {HTMLElement} [target] - The clicked element (for data attributes)
  */
-export function handleListenerClick(action) {
+export function handleListenerClick(action, target) {
   switch (action) {
     case 'toggle-listener-panel':
       toggleListenerPanel();
@@ -164,9 +188,15 @@ export function handleListenerClick(action) {
     case 'toggle-mic':
       toggleMic();
       break;
-    case 'apply-detected-chord':
-      applyDetectedChord();
+    case 'clear-history':
+      clearHistory();
       break;
+    case 'history-chord': {
+      const r = parseInt(target.dataset.root, 10);
+      const t = parseInt(target.dataset.type, 10);
+      if (!isNaN(r) && !isNaN(t)) applyHistoryChord(r, t);
+      break;
+    }
   }
 }
 
@@ -302,48 +332,106 @@ function confidenceStars(confidence) {
 }
 
 /**
- * Update the #listener-result element with the current detection state.
- * @param {object|null} match    - ChordMatcher result or null
- * @param {Set<number>}  activeNotes - Currently sounding pitch classes
+ * Update the live status display and log sustained chords to history.
+ * A chord must be stable for STABLE_MS before it's logged — prevents
+ * transient misidentifications from cluttering the list.
  */
 function updateDisplay(match, activeNotes) {
-  const result = document.getElementById('listener-result');
-  const applyBtn = document.getElementById('listener-apply-btn');
-  if (!result) return;
+  const status = document.getElementById('listener-status');
+  if (!status) return;
 
   if (!match) {
     currentMatch = null;
-    if (applyBtn) applyBtn.disabled = true;
-    result.innerHTML = '<p class="listener-hint">Listening\u2026</p>';
+    stableMatchStart = 0;
+    status.textContent = 'Listening\u2026';
+    status.className = 'listener-hint';
     return;
   }
 
   currentMatch = match;
-  if (applyBtn) applyBtn.disabled = false;
-
+  const chordKey = match.rootIdx + '-' + match.typeIdx;
+  const now = performance.now();
   const symbol = chordSymbol(match.rootIdx, match.typeIdx);
-  const notes = chordNoteNames(match.rootIdx, match.typeIdx);
-  const stars = confidenceStars(match.confidence);
+  const pct = Math.round(match.score / (match.score + 2) * 100); // rough %
 
-  // Pitch classes heard, mapped to note names
+  // Show current detection in the status line
   const heardNames = [...activeNotes].sort((a, b) => a - b)
     .map(pc => NOTE_NAMES[pc]);
+  status.innerHTML = `<span class="listener-live-chord">${symbol}</span> ` +
+    `<span class="listener-live-pct">${pct}%</span> ` +
+    `<span class="listener-live-heard">${heardNames.join(' ')}</span>`;
+  status.className = 'listener-status-active';
 
-  // Alternate match display
-  let altHtml = '';
-  if (match.altMatch) {
-    const altSymbol = chordSymbol(match.altMatch.rootIdx, match.altMatch.typeIdx);
-    altHtml = `<div class="listener-alt">Closest alt: ${altSymbol}</div>`;
+  // Track stability — only log after STABLE_MS of the same chord
+  if (chordKey !== lastLoggedChord) {
+    // Different chord detected — start stability timer
+    if (chordKey !== (currentMatch._prevKey || null)) {
+      stableMatchStart = now;
+      currentMatch._prevKey = chordKey;
+    } else if (now - stableMatchStart >= STABLE_MS) {
+      // Stable long enough — log it
+      logChord(match, pct);
+      lastLoggedChord = chordKey;
+      currentMatch._prevKey = null;
+    }
+  }
+}
+
+/**
+ * Add a chord to the history log and render it.
+ */
+function logChord(match, pct) {
+  const entry = {
+    rootIdx: match.rootIdx,
+    typeIdx: match.typeIdx,
+    symbol: chordSymbol(match.rootIdx, match.typeIdx),
+    notes: chordNoteNames(match.rootIdx, match.typeIdx).join(' \u2013 '),
+    confidence: match.confidence,
+    pct: pct,
+    time: new Date(),
+  };
+
+  chordHistory.unshift(entry);
+  if (chordHistory.length > MAX_HISTORY) chordHistory.pop();
+
+  // Auto-navigate the explorer to this chord
+  navigateToChord(match.rootIdx, match.typeIdx);
+
+  // Show the history container + clear button
+  const container = document.getElementById('listener-history-container');
+  if (container) container.style.display = '';
+  const clearBtn = document.getElementById('listener-clear-btn');
+  if (clearBtn) clearBtn.style.display = '';
+
+  renderHistory();
+}
+
+/**
+ * Render the chord history list.
+ */
+function renderHistory() {
+  const list = document.getElementById('listener-history');
+  if (!list) return;
+
+  if (chordHistory.length === 0) {
+    list.innerHTML = '';
+    return;
   }
 
-  result.innerHTML = `
-    <div class="listener-detected">
-      <div class="listener-match-row">
-        <span class="listener-chord-name">${symbol}</span>
-        <span class="listener-stars">${stars}</span>
-      </div>
-      <div class="listener-notes">${notes.join(' \u2013 ')}</div>
-      <div class="listener-heard">Notes heard: ${heardNames.join(' ')}</div>
-      ${altHtml}
-    </div>`;
+  list.innerHTML = chordHistory.map((entry, i) => {
+    const timeStr = entry.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    const stars = confidenceStars(entry.confidence);
+    const isNewest = i === 0;
+    return `
+      <div class="listener-history-row${isNewest ? ' newest' : ''}"
+           data-listener-action="history-chord"
+           data-root="${entry.rootIdx}"
+           data-type="${entry.typeIdx}">
+        <span class="lh-chord">${entry.symbol}</span>
+        <span class="lh-pct">${entry.pct}%</span>
+        <span class="lh-stars">${stars}</span>
+        <span class="lh-notes">${entry.notes}</span>
+        <span class="lh-time">${timeStr}</span>
+      </div>`;
+  }).join('');
 }

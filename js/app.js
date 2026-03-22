@@ -210,7 +210,7 @@ document.addEventListener('click', function(e) {
   // Listener panel actions
   const listenerAction = e.target.closest('[data-listener-action]');
   if (listenerAction) {
-    handleListenerClick(listenerAction.dataset.listenerAction);
+    handleListenerClick(listenerAction.dataset.listenerAction, listenerAction);
     return;
   }
 }, { passive: false });
