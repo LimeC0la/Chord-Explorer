@@ -19,6 +19,8 @@ let selectedInversion = 0;
 let instrumentMode = 'piano';
 let progMode = 'major';
 let activePreset = 'default';
+let prevRoot = null;    // track for fade-on-chord-change
+let prevType = null;
 
 // ---- Public state accessors ----
 export function getSelectedRoot() { return selectedRoot; }
@@ -540,31 +542,38 @@ export function renderResult() {
   // Related chords
   html += renderRelatedChords(selectedRoot, selectedType);
 
-  // Smooth fade transition
+  // Did the actual chord change (root or type), or just inversion/instrument?
+  const chordChanged = (selectedRoot !== prevRoot || selectedType !== prevType);
+  prevRoot = selectedRoot;
+  prevType = selectedType;
+
   const doSwap = () => {
     area.innerHTML = html;
 
+    // Render instrument display
     if (instrumentMode === 'piano') {
       const pianoEl = document.getElementById('main-piano');
-      if (pianoEl) {
-        renderPiano(pianoEl, inv.voicedSemis, ROOTS[selectedRoot].semi);
-      }
+      if (pianoEl) renderPiano(pianoEl, inv.voicedSemis, ROOTS[selectedRoot].semi);
     } else {
       const diagEl = document.getElementById('chord-diagram');
-      if (diagEl) {
-        renderChordDiagram(diagEl, inv.semis, instrumentMode, selectedRoot);
-      }
+      if (diagEl) renderChordDiagram(diagEl, inv.semis, instrumentMode, selectedRoot);
     }
 
-    renderProgressions();
-    renderCircleOfFifths();
+    // Only re-render these when the chord itself changed (not on inversion/instrument switch)
+    if (chordChanged) {
+      renderProgressions();
+      renderCircleOfFifths();
+    }
 
-    requestAnimationFrame(() => area.classList.remove('fading-out'));
+    if (chordChanged) {
+      requestAnimationFrame(() => area.classList.remove('fading-out'));
+    }
   };
 
-  if (area.innerHTML && !area.classList.contains('fading-out')) {
+  // Only fade on chord changes; instant swap for inversions/instrument switches
+  if (chordChanged && area.innerHTML && !area.classList.contains('fading-out')) {
     area.classList.add('fading-out');
-    setTimeout(doSwap, 150);
+    setTimeout(doSwap, 140);
   } else {
     doSwap();
   }
