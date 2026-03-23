@@ -1,16 +1,24 @@
 /**
  * pitch-analyser.js
  *
- * Offline multi-frame pitch detection on a captured audio buffer.
- * Uses TWO complementary methods per frame:
+ * Offline multi-pass pitch detection on a captured audio buffer.
  *
- *   1. YIN  — finds the single strongest fundamental (monophonic, high precision)
- *   2. FFT peak detection — finds multiple simultaneous pitches (polyphonic)
+ * Three analysis passes at different resolutions, plus Harmonic Product
+ * Spectrum (HPS) to suppress harmonics. Designed to spend 300-800ms on
+ * a 1.2s capture — the strings are still ringing so this feels instant.
  *
- * Both methods contribute to a shared pitch-class hit map. This combination
- * is critical: YIN alone can only report one note per frame (useless for
- * chords), while FFT peaks alone can confuse harmonics for fundamentals.
- * Together they reliably detect 3-6 note chords from a single strum.
+ * Pass 1 — Large window (8192), hop 2048: fine frequency resolution for
+ *          bass notes and lower chord tones. ~22 frames.
+ *
+ * Pass 2 — Medium window (4096), hop 1024: better time resolution, catches
+ *          higher transient notes the large window smears. ~48 frames.
+ *
+ * Pass 3 — HPS on each large-window FFT frame: collapses harmonics down
+ *          to reinforce the true fundamental. Best technique to avoid
+ *          misidentifying the 2nd or 3rd harmonic as a separate note.
+ *
+ * All three passes contribute to a shared pitch-class hit map. The hit
+ * ratio filter then removes notes that didn't appear consistently.
  */
 
 import { yin } from './yin.js';
@@ -21,18 +29,23 @@ export class PitchAnalyser {
     this.sampleRate = sampleRate;
 
     // ── Config ────────────────────────────────────────────────
-    this.FFT_SIZE       = 8192;  // large window → fine Hz resolution offline
-    this.HOP_SIZE       = 2048;  // 75% overlap between frames
-    this.YIN_THRESHOLD  = 0.15;  // YIN d'(tau) cutoff
-    this.MIN_FREQUENCY  = 75;    // ~guitar low E with headroom
-    this.MAX_FREQUENCY  = 1500;  // above highest guitar/uke fundamental
-    this.YIN_MIN_CONF   = 0.60;  // YIN confidence cutoff (lower for chords — polyphonic interference reduces YIN certainty)
-    this.FFT_PEAK_DB    = 20;    // dB above noise floor to count as a spectral peak
-    this.MIN_HIT_RATIO  = 0.12;  // note must appear in 12%+ of frames to count
+    this.MIN_FREQUENCY  = 75;
+    this.MAX_FREQUENCY  = 1500;
+    this.YIN_THRESHOLD  = 0.15;
+    this.YIN_MIN_CONF   = 0.55;  // lowered — polyphonic content reduces YIN certainty
+    this.FFT_PEAK_DB    = 18;    // dB above noise floor for spectral peak
+    this.HPS_ORDER      = 4;     // downsample × 2, 3, 4 for harmonic product
+    this.MIN_HIT_RATIO  = 0.08;  // note must appear in 8%+ of total frames across all passes
+
+    // Pass configurations: [fftSize, hopSize]
+    this.PASSES = [
+      [8192, 2048],  // Pass 1: large window, fine frequency resolution
+      [4096, 1024],  // Pass 2: medium window, better time resolution
+    ];
   }
 
   /**
-   * Analyse a captured audio buffer and return detected pitch classes.
+   * Multi-pass analysis of a captured audio buffer.
    *
    * @param {{ samples: Float32Array, sampleRate: number }} buffer
    * @returns {{
@@ -45,65 +58,94 @@ export class PitchAnalyser {
   analyse(buffer) {
     const { samples } = buffer;
 
-    // ── Step 1: Slice into overlapping frames ─────────────────
-    const frameCount = Math.max(
-      1,
-      Math.floor((samples.length - this.FFT_SIZE) / this.HOP_SIZE) + 1
-    );
-
-    // Per pitch class: total hits and confidence sums
+    // Accumulators across all passes
     const hitCounts = new Array(12).fill(0);
     const confSums  = new Array(12).fill(0);
     const freqSums  = new Array(12).fill(0);
-
     let totalFrames = 0;
 
-    for (let f = 0; f < frameCount; f++) {
-      const start = f * this.HOP_SIZE;
-      const end   = start + this.FFT_SIZE;
-      if (end > samples.length) break;
-
-      const frame    = samples.slice(start, end);
-      const windowed = hannWindow(frame);
-
-      totalFrames++;
-
-      // ── Method 1: YIN (dominant pitch) ────────────────────
-      const yinResult = yin(windowed, this.sampleRate, this.YIN_THRESHOLD);
-      if (yinResult &&
-          yinResult.frequency >= this.MIN_FREQUENCY &&
-          yinResult.frequency <= this.MAX_FREQUENCY &&
-          yinResult.confidence >= this.YIN_MIN_CONF) {
-        const midi = Math.round(12 * Math.log2(yinResult.frequency / 440) + 69);
-        const pc   = ((midi % 12) + 12) % 12;
-        hitCounts[pc]++;
-        confSums[pc]  += yinResult.confidence;
-        freqSums[pc]  += yinResult.frequency;
-      }
-
-      // ── Method 2: FFT peak detection (polyphonic) ─────────
-      const peaks = fftPeaks(
-        windowed, this.sampleRate, this.FFT_SIZE,
-        this.MIN_FREQUENCY, this.MAX_FREQUENCY, this.FFT_PEAK_DB
+    // ── Pass 1 & 2: YIN + FFT peaks at each resolution ──────
+    for (const [fftSize, hopSize] of this.PASSES) {
+      const frameCount = Math.max(
+        1,
+        Math.floor((samples.length - fftSize) / hopSize) + 1
       );
 
-      for (const peak of peaks) {
-        const pc = ((peak.midi % 12) + 12) % 12;
-        // Avoid double-counting if YIN already found this same pitch class this frame
-        // by giving FFT hits slightly lower confidence weight
-        hitCounts[pc]++;
-        confSums[pc]  += 0.7; // fixed moderate confidence for FFT peaks
-        freqSums[pc]  += peak.frequency;
+      for (let f = 0; f < frameCount; f++) {
+        const start = f * hopSize;
+        const end   = start + fftSize;
+        if (end > samples.length) break;
+
+        const frame    = samples.slice(start, end);
+        const windowed = hannWindow(frame);
+        totalFrames++;
+
+        // YIN (dominant pitch)
+        const yinResult = yin(windowed, this.sampleRate, this.YIN_THRESHOLD);
+        if (yinResult &&
+            yinResult.frequency >= this.MIN_FREQUENCY &&
+            yinResult.frequency <= this.MAX_FREQUENCY &&
+            yinResult.confidence >= this.YIN_MIN_CONF) {
+          const midi = Math.round(12 * Math.log2(yinResult.frequency / 440) + 69);
+          const pc   = ((midi % 12) + 12) % 12;
+          hitCounts[pc]++;
+          confSums[pc]  += yinResult.confidence;
+          freqSums[pc]  += yinResult.frequency;
+        }
+
+        // FFT peak detection (polyphonic)
+        const peaks = fftPeaks(
+          windowed, this.sampleRate, fftSize,
+          this.MIN_FREQUENCY, this.MAX_FREQUENCY, this.FFT_PEAK_DB
+        );
+        for (const peak of peaks) {
+          const pc = ((peak.midi % 12) + 12) % 12;
+          hitCounts[pc]++;
+          confSums[pc]  += 0.70;
+          freqSums[pc]  += peak.frequency;
+        }
       }
     }
 
-    // ── Step 2: Filter by hit ratio ──────────────────────────
-    // Total hit opportunities per frame = 1 (YIN) + N (FFT peaks), but we
-    // normalise against totalFrames since that's the frame count.
-    const minHits = Math.max(1, Math.ceil(totalFrames * this.MIN_HIT_RATIO));
+    // ── Pass 3: Harmonic Product Spectrum on large windows ───
+    // HPS multiplies the spectrum at 1×, 2×, 3×, 4× downsampling.
+    // True fundamentals get reinforced; harmonics get suppressed.
+    {
+      const fftSize = 8192;
+      const hopSize = 4096; // 50% overlap — fewer frames, HPS is heavier
+      const frameCount = Math.max(
+        1,
+        Math.floor((samples.length - fftSize) / hopSize) + 1
+      );
+
+      for (let f = 0; f < frameCount; f++) {
+        const start = f * hopSize;
+        const end   = start + fftSize;
+        if (end > samples.length) break;
+
+        const frame    = samples.slice(start, end);
+        const windowed = hannWindow(frame);
+        totalFrames++;
+
+        const hpsPeaks = harmonicProductSpectrum(
+          windowed, this.sampleRate, fftSize,
+          this.MIN_FREQUENCY, this.MAX_FREQUENCY, this.HPS_ORDER
+        );
+
+        for (const peak of hpsPeaks) {
+          const pc = ((peak.midi % 12) + 12) % 12;
+          // HPS-confirmed fundamentals get a confidence boost
+          hitCounts[pc] += 2;
+          confSums[pc]  += 0.85 * 2;
+          freqSums[pc]  += peak.frequency * 2;
+        }
+      }
+    }
+
+    // ── Filter by hit ratio ──────────────────────────────────
+    const minHits = Math.max(2, Math.ceil(totalFrames * this.MIN_HIT_RATIO));
 
     const pitchClasses = new Map();
-
     for (let pc = 0; pc < 12; pc++) {
       if (hitCounts[pc] >= minHits) {
         pitchClasses.set(pc, {
@@ -114,15 +156,19 @@ export class PitchAnalyser {
       }
     }
 
-    // ── Step 3: Harmonic verification ────────────────────────
-    // Remove notes that only appear as harmonics of stronger notes.
+    // ── Harmonic verification (post-filter cleanup) ──────────
+    // Remove notes that only appear as octave harmonics of much stronger notes.
     const toRemove = [];
     for (const [pc, data] of pitchClasses) {
       for (const [otherPc, otherData] of pitchClasses) {
         if (pc === otherPc) continue;
         const ratio = data.avgFrequency / otherData.avgFrequency;
-        // Is this note ~2× another note's frequency AND much weaker?
-        if (ratio > 1.85 && ratio < 2.15 && data.hits < otherData.hits * 0.5) {
+        if (ratio > 1.85 && ratio < 2.15 && data.hits < otherData.hits * 0.4) {
+          toRemove.push(pc);
+          break;
+        }
+        // Also check 3× harmonic
+        if (ratio > 2.85 && ratio < 3.15 && data.hits < otherData.hits * 0.35) {
           toRemove.push(pc);
           break;
         }
@@ -158,55 +204,40 @@ export class PitchAnalyser {
 /**
  * Compute magnitude spectrum via radix-2 FFT, then find local peaks
  * above the noise floor. Returns multiple detected pitches per frame.
- *
- * @param {Float32Array} windowed  - Hann-windowed time-domain samples
- * @param {number} sampleRate
- * @param {number} fftSize
- * @param {number} minFreq
- * @param {number} maxFreq
- * @param {number} peakDbAboveFloor
- * @returns {Array<{ frequency: number, midi: number, magnitude: number }>}
  */
 function fftPeaks(windowed, sampleRate, fftSize, minFreq, maxFreq, peakDbAboveFloor) {
-  // Compute magnitude spectrum
   const { re, im } = fft(windowed);
   const binCount = fftSize / 2;
   const hzPerBin = sampleRate / fftSize;
 
-  // Convert to dB magnitude for the bins we care about
   const minBin = Math.max(1, Math.floor(minFreq / hzPerBin));
   const maxBin = Math.min(binCount - 2, Math.floor(maxFreq / hzPerBin));
 
   const mags = new Float32Array(binCount);
   for (let i = minBin; i <= maxBin; i++) {
     const mag = Math.sqrt(re[i] * re[i] + im[i] * im[i]);
-    mags[i] = 20 * Math.log10(mag + 1e-10); // dB
+    mags[i] = 20 * Math.log10(mag + 1e-10);
   }
 
-  // Find noise floor (median of magnitudes in range)
+  // Noise floor = median
   const sorted = [];
   for (let i = minBin; i <= maxBin; i++) sorted.push(mags[i]);
   sorted.sort((a, b) => a - b);
   const noiseFloor = sorted[Math.floor(sorted.length * 0.5)];
   const threshold  = noiseFloor + peakDbAboveFloor;
 
-  // Find local maxima above threshold
   const peaks = [];
   const seenPitchClasses = new Set();
 
   for (let i = minBin + 1; i < maxBin; i++) {
     if (mags[i] > mags[i - 1] && mags[i] > mags[i + 1] && mags[i] > threshold) {
-      // Parabolic interpolation for sub-bin accuracy
-      const a = mags[i - 1];
-      const b = mags[i];
-      const c = mags[i + 1];
+      const a = mags[i - 1], b = mags[i], c = mags[i + 1];
       const shift = (a - c) / (2 * (a - 2 * b + c));
       const freq  = (i + (isFinite(shift) ? shift : 0)) * hzPerBin;
 
       const midi = Math.round(12 * Math.log2(freq / 440) + 69);
       if (midi < 28 || midi > 96) continue;
 
-      // Deduplicate: only one peak per pitch class per frame
       const pc = ((midi % 12) + 12) % 12;
       if (seenPitchClasses.has(pc)) continue;
       seenPitchClasses.add(pc);
@@ -218,15 +249,79 @@ function fftPeaks(windowed, sampleRate, fftSize, minFreq, maxFreq, peakDbAboveFl
   return peaks;
 }
 
-// ── Radix-2 FFT (in-place, iterative) ─────────────────────────
+// ── Harmonic Product Spectrum ─────────────────────────────────
 
 /**
- * Compute the FFT of a real-valued signal.
- * Returns complex arrays { re, im } of length N.
- * Input length MUST be a power of 2.
+ * HPS: multiply the magnitude spectrum at 1×, 2×, 3×, … downsampled rates.
+ * Harmonics misalign under downsampling while the true fundamental reinforces.
+ * Returns peaks from the product spectrum.
  */
+function harmonicProductSpectrum(windowed, sampleRate, fftSize, minFreq, maxFreq, order) {
+  const { re, im } = fft(windowed);
+  const binCount = fftSize / 2;
+  const hzPerBin = sampleRate / fftSize;
+
+  // Compute linear magnitude spectrum
+  const mags = new Float32Array(binCount);
+  for (let i = 0; i < binCount; i++) {
+    mags[i] = Math.sqrt(re[i] * re[i] + im[i] * im[i]);
+  }
+
+  // HPS: product of spectrum at decimation rates 1× through order×
+  const hpsLen = Math.floor(binCount / order);
+  const hps    = new Float32Array(hpsLen);
+
+  for (let i = 0; i < hpsLen; i++) {
+    let product = mags[i];
+    for (let h = 2; h <= order; h++) {
+      product *= mags[i * h] || 1e-10;
+    }
+    hps[i] = product;
+  }
+
+  // Convert to log scale for peak picking
+  const logHps = new Float32Array(hpsLen);
+  for (let i = 0; i < hpsLen; i++) {
+    logHps[i] = 20 * Math.log10(hps[i] + 1e-30);
+  }
+
+  // Noise floor
+  const minBin = Math.max(1, Math.floor(minFreq / hzPerBin));
+  const maxBin = Math.min(hpsLen - 2, Math.floor(maxFreq / hzPerBin));
+
+  const sorted = [];
+  for (let i = minBin; i <= maxBin; i++) sorted.push(logHps[i]);
+  sorted.sort((a, b) => a - b);
+  const noiseFloor = sorted[Math.floor(sorted.length * 0.5)];
+  const threshold  = noiseFloor + 25; // HPS peaks are very sharp — use higher threshold
+
+  const peaks = [];
+  const seenPitchClasses = new Set();
+
+  for (let i = minBin + 1; i < maxBin; i++) {
+    if (logHps[i] > logHps[i - 1] && logHps[i] > logHps[i + 1] && logHps[i] > threshold) {
+      const a = logHps[i - 1], b = logHps[i], c = logHps[i + 1];
+      const shift = (a - c) / (2 * (a - 2 * b + c));
+      const freq  = (i + (isFinite(shift) ? shift : 0)) * hzPerBin;
+
+      const midi = Math.round(12 * Math.log2(freq / 440) + 69);
+      if (midi < 28 || midi > 96) continue;
+
+      const pc = ((midi % 12) + 12) % 12;
+      if (seenPitchClasses.has(pc)) continue;
+      seenPitchClasses.add(pc);
+
+      peaks.push({ frequency: freq, midi });
+    }
+  }
+
+  return peaks;
+}
+
+// ── Radix-2 FFT (iterative, in-place) ─────────────────────────
+
 function fft(signal) {
-  const N = signal.length;
+  const N  = signal.length;
   const re = new Float32Array(N);
   const im = new Float32Array(N);
 
@@ -235,26 +330,35 @@ function fft(signal) {
     re[bitReverse(i, N)] = signal[i];
   }
 
-  // Cooley-Tukey iterative FFT
+  // Cooley-Tukey butterfly
   for (let size = 2; size <= N; size *= 2) {
     const half  = size / 2;
     const angle = -2 * Math.PI / size;
 
-    for (let i = 0; i < N; i += size) {
-      for (let j = 0; j < half; j++) {
-        const wr = Math.cos(angle * j);
-        const wi = Math.sin(angle * j);
+    // Pre-compute twiddle factor for this stage
+    const wRe = Math.cos(angle);
+    const wIm = Math.sin(angle);
 
+    for (let i = 0; i < N; i += size) {
+      let twRe = 1, twIm = 0;
+
+      for (let j = 0; j < half; j++) {
         const evenIdx = i + j;
         const oddIdx  = i + j + half;
 
-        const tRe = wr * re[oddIdx] - wi * im[oddIdx];
-        const tIm = wr * im[oddIdx] + wi * re[oddIdx];
+        const tRe = twRe * re[oddIdx] - twIm * im[oddIdx];
+        const tIm = twRe * im[oddIdx] + twIm * re[oddIdx];
 
         re[oddIdx] = re[evenIdx] - tRe;
         im[oddIdx] = im[evenIdx] - tIm;
         re[evenIdx] += tRe;
         im[evenIdx] += tIm;
+
+        // Rotate twiddle factor
+        const nextRe = twRe * wRe - twIm * wIm;
+        const nextIm = twRe * wIm + twIm * wRe;
+        twRe = nextRe;
+        twIm = nextIm;
       }
     }
   }
@@ -262,9 +366,6 @@ function fft(signal) {
   return { re, im };
 }
 
-/**
- * Reverse the bottom log2(N) bits of an integer.
- */
 function bitReverse(x, N) {
   const bits = Math.log2(N);
   let result = 0;
