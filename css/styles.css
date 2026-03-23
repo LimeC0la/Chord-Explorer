@@ -1770,3 +1770,350 @@
   .dark .lh-pct { color: #8a70c0; }
   .dark .lh-notes { color: #6a6080; }
   .dark .lh-time { color: #4a4060; }
+
+  /* ---- Chord Listener — Triggered Detection UI ---- */
+
+  /* State label ("Listening…", "Capturing…", "Analysing…") */
+  .listener-state-label {
+    font-size: 0.72rem;
+    color: #b0a89e;
+    min-height: 1rem;
+    margin-bottom: 0.4rem;
+  }
+
+  /* Detection card — wraps one capture's results */
+  .detect-card {
+    border: 1.5px solid #e8e4de;
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+    background: #fff;
+  }
+
+  .detect-label {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #b0a89e;
+    margin-bottom: 0.4rem;
+  }
+
+  /* Latest card — expanded with full confidence bars */
+  .detect-latest {
+    border-color: #c8bde0;
+    background: #faf8fd;
+  }
+
+  /* Confidence bar rows */
+  .detect-candidates {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .detect-candidate {
+    display: grid;
+    grid-template-columns: 7rem 1fr 2.5rem;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .detect-candidate.primary .detect-chord-name {
+    font-family: 'Lora', serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #3a3530;
+  }
+
+  .detect-candidate.secondary .detect-chord-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #6a6560;
+  }
+
+  .detect-conf-bar {
+    height: 8px;
+    background: #ede9e3;
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .detect-conf-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: linear-gradient(90deg,
+      #d0585a 0%,
+      #d0a030 50%,
+      #4a9060 100%
+    );
+    transition: width 0.2s ease;
+  }
+
+  .detect-conf-pct {
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #6a50a0;
+    text-align: right;
+  }
+
+  /* Detected notes line */
+  .detect-notes {
+    font-size: 0.72rem;
+    color: #9a9590;
+    margin-bottom: 0.6rem;
+  }
+
+  /* Actions row (Apply + Play back + Waveform toggle) */
+  .detect-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-top: 0.5rem;
+  }
+
+  /* Apply button */
+  .detect-apply {
+    background: #6a50a0;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.4rem 1rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .detect-apply:hover { background: #5a4090; }
+
+  /* Previous entry section */
+  .detect-prev-section {
+    margin-top: 0.2rem;
+  }
+
+  /* Previous (compact) rows */
+  .detect-prev {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.8rem;
+    border-radius: 8px;
+    border: 1px solid #eeeae4;
+    background: #f8f6f2;
+    margin-bottom: 0.3rem;
+    font-size: 0.78rem;
+  }
+
+  .detect-prev-best {
+    font-family: 'Lora', serif;
+    font-weight: 600;
+    color: #3a3530;
+    font-size: 0.82rem;
+  }
+
+  .detect-prev-alt {
+    font-size: 0.72rem;
+    color: #9a9590;
+    flex: 1;
+  }
+
+  .detect-prev-time {
+    font-size: 0.62rem;
+    color: #b0a89e;
+    white-space: nowrap;
+    margin-left: auto;
+  }
+
+  /* Faded entries (>30 seconds old) */
+  .detect-faded {
+    opacity: 0.5;
+  }
+
+  /* Slide-in animation for new entries */
+  .detect-latest {
+    animation: detect-slide-in 0.2s ease-out;
+  }
+
+  @keyframes detect-slide-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ---- Dark mode — detection cards ---- */
+  .dark .detect-card          { background: #1e1c24; border-color: #2e2a38; }
+  .dark .detect-latest        { background: #211e2a; border-color: #3a3050; }
+  .dark .detect-label         { color: #5a5470; }
+  .dark .detect-chord-name    { color: #e0d8f0; }
+  .dark .detect-candidate.secondary .detect-chord-name { color: #8a8298; }
+  .dark .detect-conf-bar      { background: #2e2a38; }
+  .dark .detect-conf-pct      { color: #8a70c0; }
+  .dark .detect-notes         { color: #5a5470; }
+  .dark .detect-apply         { background: #7a60b0; }
+  .dark .detect-apply:hover   { background: #6a50a0; }
+  .dark .detect-prev          { background: #1a1820; border-color: #2a2630; }
+  .dark .detect-prev-best     { color: #e0d8f0; }
+  .dark .detect-prev-alt      { color: #5a5470; }
+  .dark .detect-prev-time     { color: #4a4060; }
+
+  /* ---- Tuning indicator ---- */
+  .detect-tuner {
+    text-align: center;
+    padding: 0.8rem 0.5rem;
+  }
+
+  .detect-tuner-note {
+    font-family: 'Lora', serif;
+    font-size: 2.2rem;
+    font-weight: 700;
+    color: #3a3530;
+    line-height: 1;
+  }
+
+  .detect-tuner-meter {
+    position: relative;
+    height: 10px;
+    background: #ede9e3;
+    border-radius: 5px;
+    margin: 0.6rem auto;
+    max-width: 220px;
+    overflow: visible;
+  }
+
+  .detect-tuner-needle {
+    position: absolute;
+    top: -3px;
+    width: 4px;
+    height: 16px;
+    border-radius: 2px;
+    transform: translateX(-50%);
+    transition: left 0.15s ease, background 0.15s;
+  }
+
+  .detect-tuner-center {
+    position: absolute;
+    top: -4px;
+    left: 50%;
+    width: 2px;
+    height: 18px;
+    background: #b0a89e;
+    transform: translateX(-50%);
+    border-radius: 1px;
+  }
+
+  .detect-tuner-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.6rem;
+    color: #b0a89e;
+    max-width: 220px;
+    margin: 0 auto;
+  }
+
+  .detect-tuner-readout {
+    font-size: 0.78rem;
+    color: #7a7570;
+    margin-top: 0.4rem;
+  }
+
+  .dark .detect-tuner-note  { color: #e0d8f0; }
+  .dark .detect-tuner-meter { background: #2e2a38; }
+  .dark .detect-tuner-center { background: #5a5470; }
+  .dark .detect-tuner-readout { color: #8a8298; }
+
+  /* ---- Diagnostic hint ---- */
+  .detect-hint {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #f8f0e8;
+    border-left: 3px solid #d0a030;
+    border-radius: 0 8px 8px 0;
+    padding: 0.5rem 0.7rem;
+    margin-top: 0.6rem;
+    font-size: 0.75rem;
+    color: #7a6540;
+    line-height: 1.4;
+  }
+
+  .detect-hint-icon { font-size: 1rem; flex-shrink: 0; }
+
+  .dark .detect-hint        { background: #2a2418; border-left-color: #c08020; color: #c0a060; }
+
+  /* ---- Playback button ---- */
+  .detect-playback-btn {
+    background: transparent;
+    border: 1.5px solid #c8bde0;
+    color: #6a50a0;
+    border-radius: 8px;
+    padding: 0.38rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-left: 0.5rem;
+    transition: background 0.15s;
+  }
+  .detect-playback-btn:hover { background: #f0ebfa; }
+  .detect-playback-btn.playing { background: #6a50a0; color: #fff; }
+
+  .dark .detect-playback-btn { border-color: #3a3050; color: #8a70c0; }
+  .dark .detect-playback-btn:hover { background: #2a2438; }
+  .dark .detect-playback-btn.playing { background: #7a60b0; color: #fff; }
+
+  /* ---- Waveform scrub ---- */
+  .detect-waveform-toggle {
+    font-size: 0.68rem;
+    color: #9a9590;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    margin-top: 0.4rem;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .detect-waveform-toggle:hover { color: #6a50a0; }
+
+  .detect-waveform-wrap {
+    margin-top: 0.6rem;
+  }
+
+  .detect-waveform-canvas {
+    display: block;
+    width: 100%;
+    height: 60px;
+    border-radius: 6px;
+    cursor: crosshair;
+    touch-action: none;
+  }
+
+  .detect-waveform-time-axis {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.58rem;
+    color: #b0a89e;
+    margin-top: 0.15rem;
+  }
+
+  .detect-reanalyse-btn {
+    display: none;
+    margin-top: 0.5rem;
+    background: transparent;
+    border: 1.5px solid #c8bde0;
+    color: #6a50a0;
+    border-radius: 8px;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .detect-reanalyse-btn:hover { background: #f0ebfa; }
+  .detect-reanalyse-btn.visible { display: inline-block; }
+
+  .dark .detect-waveform-toggle { color: #5a5470; }
+  .dark .detect-waveform-toggle:hover { color: #8a70c0; }
+  .dark .detect-waveform-time-axis { color: #4a4060; }
+  .dark .detect-reanalyse-btn { border-color: #3a3050; color: #8a70c0; }
+  .dark .detect-reanalyse-btn:hover { background: #2a2438; }

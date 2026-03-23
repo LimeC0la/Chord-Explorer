@@ -1,46 +1,79 @@
 /**
  * listener-ui.js
  *
- * Main listener controller — ties together MicManager, YIN, NoteAccumulator,
- * and ChordMatcher with a requestAnimationFrame loop, and renders the
- * listener panel UI.
+ * Chord Listener — state machine controller and UI renderer.
+ *
+ * State machine:
+ *   IDLE → LISTENING → CAPTURING → ANALYSING → DISPLAYING → LISTENING
+ *
+ * - IDLE:       Mic off. Button says "Start Listening".
+ * - LISTENING:  Mic on, onset detector running in rAF loop.
+ * - CAPTURING:  Onset detected, AudioCapture recording for 1200ms.
+ * - ANALYSING:  Buffer complete, running PitchAnalyser + ChordMatcher (~100-200ms).
+ * - DISPLAYING: Result shown. Monitor for next onset.
+ *
+ * Extra features (integrated inline):
+ *   - Tuning indicator: single-note → cents deviation display
+ *   - Try-again hints: diagnostic messages when confidence is low
+ *   - Play it back: replay the captured audio snippet
+ *   - Manual scrub: canvas waveform with drag-to-select region + re-analyse
  */
 
-import { MicManager } from './mic-manager.js';
-import { yin } from './yin.js';
-import { NoteAccumulator } from './note-accumulator.js';
-import { ChordMatcher } from './chord-matcher.js';
-import { NOTE_NAMES, ROOTS, chordSymbol, chordNoteNames } from '../music-theory.js';
+import { MicManager }      from './mic-manager.js';
+import { OnsetDetector }   from './onset-detector.js';
+import { AudioCapture }    from './audio-capture.js';
+import { PitchAnalyser }   from './pitch-analyser.js';
+import { ChordMatcher }    from './chord-matcher.js';
+import { NOTE_NAMES }      from '../music-theory.js';
 import { navigateToChord } from '../ui.js';
+
+/* ── Constants ─────────────────────────────────────────────── */
+
+const STATE = Object.freeze({
+  IDLE:       'IDLE',
+  LISTENING:  'LISTENING',
+  CAPTURING:  'CAPTURING',
+  ANALYSING:  'ANALYSING',
+  DISPLAYING: 'DISPLAYING',
+});
+
+const MAX_HISTORY           = 8;
+const CANDIDATE_MIN_PCT     = 40;
+const TIMESTAMP_REFRESH_MS  = 3000;
 
 /* ── Module-level state ────────────────────────────────────── */
 
-let micManager = null;
-let accumulator = null;
-let matcher = null;
-let animFrameId = null;
-let lastUpdateTime = 0;
-const UPDATE_DEBOUNCE = 150; // ms — prevent flickery display
-let analyserBuffer = null;   // Float32Array, reused for time-domain
-let freqBuffer = null;       // Float32Array, reused for FFT
-let currentMatch = null;     // Last displayed match
-let panelExpanded = false;   // Collapse state
+let micManager    = null;
+let onsetDetector = null;
+let audioCapture  = null;
+let pitchAnalyser = null;
+let matcher       = null;
 
-// Chord history log — newest first, capped at MAX_HISTORY
-let chordHistory = [];
-const MAX_HISTORY = 30;
-let lastLoggedChord = null;  // Key string for dedup ("0-0" = C maj)
-let stableMatchStart = 0;   // When the current match first appeared
-const STABLE_MS = 400;      // Must be stable this long to log
+let currentState = STATE.IDLE;
+let animFrameId  = null;
 
-// Amplitude gate — ignore signals quieter than this (filters out speech/ambient)
-const AMP_GATE = 0.04;
+// Detection history — newest first
+let detectionHistory = [];
+
+// Latest raw capture buffer (for playback + scrub)
+let latestCaptureBuffer = null;  // { samples: Float32Array, sampleRate: number, durationMs: number }
+
+// Scrub selection state
+let scrubSelection = { startMs: 0, endMs: 1200 };
+let waveformVisible = false;
+let scrubDragging = false;
+let scrubDragEdge = null; // 'start' | 'end' | 'region'
+let scrubDragStartX = 0;
+let scrubDragStartMs = 0;
+
+// Playback
+let playbackSource = null;
+
+// Timestamp refresh
+let timestampInterval = null;
 
 /* ── Public API ────────────────────────────────────────────── */
 
-/**
- * Render the listener panel HTML into #listener-area.
- */
 export function renderListenerPanel() {
   const container = document.getElementById('listener-area');
   if (!container) return;
@@ -48,122 +81,86 @@ export function renderListenerPanel() {
   container.innerHTML = `
     <div class="listener-panel listener-panel-tab" id="listener-panel">
       <div class="listener-controls">
-        <button class="mic-btn" id="listener-mic-btn" data-listener-action="toggle-mic">
+        <button class="mic-btn" id="listener-mic-btn"
+                data-listener-action="toggle-mic">
           \uD83C\uDFA4 Start Listening
         </button>
         <button class="listener-clear-btn" id="listener-clear-btn"
-                data-listener-action="clear-history" style="display:none;">
-          Clear
+                data-listener-action="clear-history" style="display:none">
+          Clear List
         </button>
       </div>
 
       <div class="listener-level-bar" id="listener-level-bar">
         <div class="listener-level-fill" id="listener-level-fill"></div>
-        <div class="listener-level-gate" style="left:${Math.round(AMP_GATE * 100 / 0.3)}%"
-             title="Minimum level to detect"></div>
+        <div class="listener-level-gate"
+             style="left:${Math.round(0.04 / 0.3 * 100)}%"
+             title="Onset threshold"></div>
       </div>
 
-      <div id="listener-current" class="listener-current">
-        <p class="listener-hint" id="listener-status">Play a chord and I'll try to identify it</p>
-      </div>
+      <div id="listener-state-label" class="listener-state-label"></div>
 
-      <div class="listener-history-container" id="listener-history-container" style="display:none;">
-        <div class="listener-history-label">Detected chords</div>
-        <div class="listener-history" id="listener-history"></div>
-      </div>
+      <div id="listener-results"></div>
 
-      <p class="listener-footer">Strum or play a chord \u2014 sustained matches are logged below</p>
+      <p class="listener-footer">
+        Works best with a single instrument close to the mic \u2014
+        play one chord at a time for best results.
+      </p>
     </div>`;
 }
 
-// toggleListenerPanel removed — listener now has its own tab, no collapse needed
-
-/**
- * Start or stop the microphone and detection loop.
- */
 export async function toggleMic() {
-  const btn = document.getElementById('listener-mic-btn');
-
-  // ── Stop ──
-  if (micManager && micManager.isActive()) {
-    if (animFrameId != null) {
-      cancelAnimationFrame(animFrameId);
-      animFrameId = null;
-    }
-    micManager.stop();
-    if (accumulator) accumulator.reset();
-
-    if (btn) {
-      btn.textContent = '\uD83C\uDFA4 Start Listening';
-      btn.classList.remove('listening');
-    }
-    currentMatch = null;
-    lastLoggedChord = null;
-    stableMatchStart = 0;
-    const status = document.getElementById('listener-status');
-    if (status) status.textContent = 'Stopped \u2014 history preserved';
+  if (currentState !== STATE.IDLE) {
+    _stopListening();
     return;
   }
 
-  // ── Start ──
+  const btn = document.getElementById('listener-mic-btn');
+  if (btn) btn.disabled = true;
+
   if (!micManager) micManager = new MicManager();
-  if (!accumulator) accumulator = new NoteAccumulator();
-  if (!matcher) matcher = new ChordMatcher();
 
   try {
     await micManager.start();
   } catch (err) {
-    const result = document.getElementById('listener-result');
-    if (result) {
-      result.innerHTML = `<p class="listener-error">${err.message}</p>`;
-    }
+    _showError(err.message);
+    if (btn) btn.disabled = false;
     return;
   }
 
-  const fftSize = micManager.getAnalyser().fftSize;
-  analyserBuffer = new Float32Array(fftSize);
-  freqBuffer = new Float32Array(micManager.getAnalyser().frequencyBinCount);
-  lastUpdateTime = 0;
+  if (!matcher)       matcher       = new ChordMatcher();
+  if (!pitchAnalyser) pitchAnalyser = new PitchAnalyser(micManager.getSampleRate());
+
+  onsetDetector = new OnsetDetector(micManager.getAnalyser());
+  audioCapture  = new AudioCapture(micManager);
 
   if (btn) {
+    btn.disabled    = false;
     btn.textContent = '\u23F9 Stop Listening';
     btn.classList.add('listening');
   }
 
-  const status = document.getElementById('listener-status');
-  if (status) status.textContent = 'Listening\u2026';
-  lastLoggedChord = null;
-  stableMatchStart = 0;
-
-  listenLoop();
+  _setState(STATE.LISTENING);
+  _setStateLabel('Listening\u2026');
+  _startTimestampRefresh();
+  _listenLoop();
 }
 
-/**
- * Navigate to a chord from the history list.
- */
-export function applyHistoryChord(rootIdx, typeIdx) {
+export function applyDetection(rootIdx, typeIdx) {
   navigateToChord(rootIdx, typeIdx);
 }
 
-/**
- * Clear the chord history log.
- */
 export function clearHistory() {
-  chordHistory = [];
-  lastLoggedChord = null;
-  stableMatchStart = 0;
-  renderHistory();
-  const container = document.getElementById('listener-history-container');
-  if (container) container.style.display = 'none';
+  detectionHistory    = [];
+  latestCaptureBuffer = null;
+  scrubSelection      = { startMs: 0, endMs: 1200 };
+  waveformVisible     = false;
+  _stopPlayback();
+  _renderResults();
   const clearBtn = document.getElementById('listener-clear-btn');
   if (clearBtn) clearBtn.style.display = 'none';
 }
 
-/**
- * Route a click action from the panel's data-action attributes.
- * @param {string} action
- * @param {HTMLElement} [target] - The clicked element (for data attributes)
- */
 export function handleListenerClick(action, target) {
   switch (action) {
     case 'toggle-mic':
@@ -172,247 +169,672 @@ export function handleListenerClick(action, target) {
     case 'clear-history':
       clearHistory();
       break;
-    case 'history-chord': {
+    case 'apply-detection': {
       const r = parseInt(target.dataset.root, 10);
       const t = parseInt(target.dataset.type, 10);
-      if (!isNaN(r) && !isNaN(t)) applyHistoryChord(r, t);
+      if (!isNaN(r) && !isNaN(t)) applyDetection(r, t);
       break;
     }
-  }
-}
-
-/* ── Internal helpers ──────────────────────────────────────── */
-
-/**
- * Compute RMS amplitude of the time-domain buffer.
- */
-function rms(buffer) {
-  let sum = 0;
-  for (let i = 0; i < buffer.length; i++) {
-    sum += buffer[i] * buffer[i];
-  }
-  return Math.sqrt(sum / buffer.length);
-}
-
-/**
- * FFT-based peak detection — finds multiple simultaneous pitches.
- * Returns an array of MIDI note numbers from spectral peaks.
- */
-function fftPeaks(freqData, sampleRate, binCount) {
-  const peaks = [];
-  const hzPerBin = sampleRate / (binCount * 2);
-
-  // Only look at bins corresponding to ~75Hz–2000Hz
-  const minBin = Math.floor(75 / hzPerBin);
-  const maxBin = Math.min(Math.floor(2000 / hzPerBin), binCount - 2);
-
-  // Find the noise floor (median amplitude)
-  const sorted = [...freqData.slice(minBin, maxBin + 1)].sort((a, b) => a - b);
-  const noiseFloor = sorted[Math.floor(sorted.length * 0.5)];
-  const peakThreshold = noiseFloor + 20; // Must be 20dB above noise floor
-
-  for (let i = minBin + 1; i < maxBin; i++) {
-    // Local maximum and above threshold
-    if (freqData[i] > freqData[i - 1] &&
-        freqData[i] > freqData[i + 1] &&
-        freqData[i] > peakThreshold) {
-      // Parabolic interpolation for accurate frequency
-      const a = freqData[i - 1];
-      const b = freqData[i];
-      const c = freqData[i + 1];
-      const shift = (a - c) / (2 * (a - 2 * b + c));
-      const freq = (i + (isFinite(shift) ? shift : 0)) * hzPerBin;
-
-      const midi = Math.round(12 * Math.log2(freq / 440) + 69);
-      if (midi >= 28 && midi <= 96) {
-        // Avoid duplicate pitch classes from harmonics
-        const pc = midi % 12;
-        if (!peaks.some(p => p % 12 === pc)) {
-          peaks.push(midi);
-        }
+    case 'toggle-waveform':
+      waveformVisible = !waveformVisible;
+      _renderResults();
+      if (waveformVisible && latestCaptureBuffer) {
+        requestAnimationFrame(() => _initWaveform());
       }
-    }
+      break;
+    case 'reanalyse-selection':
+      _reanalyseSelection();
+      break;
+    case 'toggle-playback':
+      if (playbackSource) {
+        _stopPlayback();
+      } else {
+        _playCapture();
+      }
+      break;
   }
-
-  return peaks;
 }
 
-/**
- * requestAnimationFrame-driven detection loop.
- *
- * Uses two detection methods:
- * 1. YIN — excellent for single dominant pitches
- * 2. FFT peak detection — catches multiple simultaneous notes (chords)
- *
- * An amplitude gate ignores quiet signals (speech, ambient noise).
- */
-function listenLoop() {
+/* ── State machine ─────────────────────────────────────────── */
+
+function _setState(s) { currentState = s; }
+
+function _stopListening() {
+  if (animFrameId != null) {
+    cancelAnimationFrame(animFrameId);
+    animFrameId = null;
+  }
+  if (audioCapture) audioCapture.cancel();
+  if (micManager)   micManager.stop();
+  _stopPlayback();
+  _stopTimestampRefresh();
+  _setState(STATE.IDLE);
+  _setStateLabel('');
+
+  const btn = document.getElementById('listener-mic-btn');
+  if (btn) {
+    btn.textContent = '\uD83C\uDFA4 Start Listening';
+    btn.classList.remove('listening');
+  }
+}
+
+function _listenLoop() {
+  if (currentState === STATE.IDLE ||
+      currentState === STATE.CAPTURING ||
+      currentState === STATE.ANALYSING) return;
   if (!micManager || !micManager.isActive()) return;
 
-  const analyser = micManager.getAnalyser();
-  const sr = micManager.getSampleRate();
+  const check = onsetDetector.check();
+  _updateLevelMeter(check.rms);
 
-  // Read time-domain data
-  analyser.getFloatTimeDomainData(analyserBuffer);
-
-  // Amplitude gate — skip if the signal is too quiet
-  const amplitude = rms(analyserBuffer);
-
-  // Update the level meter
-  const levelFill = document.getElementById('listener-level-fill');
-  if (levelFill) {
-    const pct = Math.min(amplitude / 0.3, 1) * 100;  // Normalise to 0-100%
-    levelFill.style.width = pct + '%';
-    levelFill.className = 'listener-level-fill' + (amplitude >= AMP_GATE ? ' active' : '');
+  if (check.onset && currentState === STATE.LISTENING) {
+    _beginCapture();
+    return;
   }
 
-  if (amplitude >= AMP_GATE) {
-    const now = performance.now();
+  animFrameId = requestAnimationFrame(_listenLoop);
+}
 
-    // Method 1: YIN for dominant pitch
-    const detection = yin(analyserBuffer, sr);
-    if (detection && detection.confidence > 0.85) {
-      const midi = Math.round(12 * Math.log2(detection.frequency / 440) + 69);
-      if (midi >= 28 && midi <= 96) {
-        accumulator.addDetection(midi, detection.confidence, now);
+function _beginCapture() {
+  _setState(STATE.CAPTURING);
+  _setStateLabel('Capturing\u2026');
+
+  audioCapture = new AudioCapture(micManager);
+  audioCapture.startCapture(() => _beginAnalysis());
+}
+
+function _beginAnalysis() {
+  _setState(STATE.ANALYSING);
+  _setStateLabel('Analysing\u2026');
+
+  setTimeout(() => {
+    const buf = audioCapture.getBuffer();
+    if (!buf) {
+      _setState(STATE.LISTENING);
+      _setStateLabel('Listening\u2026');
+      _listenLoop();
+      return;
+    }
+
+    // Save buffer for playback + scrub
+    latestCaptureBuffer = buf;
+    scrubSelection      = { startMs: 0, endMs: buf.durationMs };
+    waveformVisible     = false;
+
+    const analysis   = pitchAnalyser.analyse(buf);
+    let matchResult  = null;
+
+    if (analysis.pitchClasses.size >= 2) {
+      matchResult = matcher.match(analysis.pitchClasses);
+    }
+
+    _addToHistory(matchResult, analysis);
+
+    _setState(STATE.LISTENING);
+    _setStateLabel('Listening\u2026');
+    _renderResults();
+
+    if (waveformVisible) {
+      requestAnimationFrame(() => _initWaveform());
+    }
+
+    animFrameId = requestAnimationFrame(_listenLoop);
+  }, 0);
+}
+
+/* ── History management ────────────────────────────────────── */
+
+function _addToHistory(matchResult, analysis) {
+  if (matchResult && matchResult.candidates.length > 0) {
+    const entry = {
+      timestamp:     Date.now(),
+      candidates:    matchResult.candidates,
+      detectedNotes: matchResult.detectedNotes,
+      dominantNote:  analysis.dominantNote,
+      isSingleNote:  analysis.isSingleNote,
+    };
+
+    detectionHistory.unshift(entry);
+    if (detectionHistory.length > MAX_HISTORY) detectionHistory.pop();
+
+    const clearBtn = document.getElementById('listener-clear-btn');
+    if (clearBtn) clearBtn.style.display = '';
+
+    // Auto-navigate explorer to top match
+    navigateToChord(matchResult.candidates[0].rootIdx, matchResult.candidates[0].typeIdx);
+
+  } else if (analysis.isSingleNote && analysis.dominantNote) {
+    // Single note — store a tuner-mode entry (no candidates)
+    const entry = {
+      timestamp:     Date.now(),
+      candidates:    [],
+      detectedNotes: [...(analysis.pitchClasses?.keys() || [])],
+      dominantNote:  analysis.dominantNote,
+      isSingleNote:  true,
+    };
+    detectionHistory.unshift(entry);
+    if (detectionHistory.length > MAX_HISTORY) detectionHistory.pop();
+    const clearBtn = document.getElementById('listener-clear-btn');
+    if (clearBtn) clearBtn.style.display = '';
+  }
+  // Else: nothing detected — don't add to history
+}
+
+/* ── Rendering ─────────────────────────────────────────────── */
+
+function _renderResults() {
+  const container = document.getElementById('listener-results');
+  if (!container) return;
+
+  if (detectionHistory.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const [latest, ...previous] = detectionHistory;
+  const parts = [_renderLatestCard(latest)];
+
+  if (previous.length > 0) {
+    parts.push(
+      `<div class="detect-prev-section">${previous.map(_renderPrevRow).join('')}</div>`
+    );
+  }
+
+  container.innerHTML = parts.join('');
+
+  // Re-attach waveform event listeners after innerHTML replacement
+  if (waveformVisible && latestCaptureBuffer) {
+    requestAnimationFrame(() => _initWaveform());
+  }
+}
+
+function _renderLatestCard(entry) {
+  // ── Tuner mode: single note ───────────────────────────────
+  if (entry.isSingleNote && entry.candidates.length === 0 && entry.dominantNote) {
+    return _renderTunerCard(entry.dominantNote);
+  }
+
+  // ── No chord match ────────────────────────────────────────
+  if (entry.candidates.length === 0) {
+    const hint = _getDiagnosticHint(null, 0, new Map());
+    return `
+      <div class="detect-card detect-latest">
+        <div class="detect-label">Latest</div>
+        <p class="listener-hint">No chord detected \u2014 try playing closer to the mic</p>
+        ${hint ? _renderHint(hint) : ''}
+      </div>`;
+  }
+
+  // ── Chord detection result ────────────────────────────────
+  const top    = entry.candidates[0];
+  const others = entry.candidates.slice(1).filter(c => c.confidence >= CANDIDATE_MIN_PCT);
+
+  const candidatesHtml = [
+    _renderCandidateRow(top, true),
+    ...others.map(c => _renderCandidateRow(c, false)),
+  ].join('');
+
+  const noteNames = entry.detectedNotes.map(pc => NOTE_NAMES[pc]).join(' ');
+
+  const hint = _getDiagnosticHint(
+    { candidates: entry.candidates },
+    0, // rmsLevel not stored in history (already passed gate)
+    new Map(entry.detectedNotes.map(pc => [pc, { hits: 1, avgConfidence: 0.9 }]))
+  );
+
+  const waveformToggleText = waveformVisible ? 'Hide waveform' : 'Show waveform';
+  const waveformHtml = waveformVisible ? _renderWaveformWidget() : '';
+
+  return `
+    <div class="detect-card detect-latest">
+      <div class="detect-label">Latest</div>
+      <div class="detect-candidates">
+        ${candidatesHtml}
+      </div>
+      <div class="detect-notes">Notes heard: ${noteNames}</div>
+      ${waveformHtml}
+      ${hint ? _renderHint(hint) : ''}
+      <div class="detect-actions">
+        <button class="detect-apply"
+                data-listener-action="apply-detection"
+                data-root="${top.rootIdx}"
+                data-type="${top.typeIdx}">
+          Apply ${top.symbol}
+        </button>
+        ${latestCaptureBuffer
+          ? `<button class="detect-playback-btn" id="detect-playback-btn"
+                     data-listener-action="toggle-playback">
+               \u25B6 Play back
+             </button>`
+          : ''}
+        <button class="detect-waveform-toggle"
+                data-listener-action="toggle-waveform">
+          ${waveformToggleText}
+        </button>
+      </div>
+    </div>`;
+}
+
+function _renderCandidateRow(candidate, isPrimary) {
+  const cls = isPrimary ? 'detect-candidate primary' : 'detect-candidate secondary';
+  return `
+    <div class="${cls}">
+      <span class="detect-chord-name">${candidate.symbol}</span>
+      <div class="detect-conf-bar">
+        <div class="detect-conf-fill" style="width:${candidate.confidence}%"></div>
+      </div>
+      <span class="detect-conf-pct">${candidate.confidence}%</span>
+    </div>`;
+}
+
+function _renderPrevRow(entry) {
+  const top      = entry.candidates[0];
+  const runnerUp = entry.candidates[1];
+  const age      = _relativeTime(entry.timestamp);
+  const faded    = _isOld(entry.timestamp) ? ' detect-faded' : '';
+
+  if (!top && entry.isSingleNote && entry.dominantNote) {
+    // Compact tuner row
+    const n = entry.dominantNote;
+    return `
+      <div class="detect-card detect-prev${faded}">
+        <span class="detect-prev-best">${n.noteName}${n.octave}</span>
+        <span class="detect-prev-alt">${n.cents > 0 ? '+' : ''}${n.cents}\u00A2</span>
+        <span class="detect-prev-time">${age}</span>
+      </div>`;
+  }
+  if (!top) return '';
+
+  const altHtml = runnerUp
+    ? `<span class="detect-prev-alt">${runnerUp.symbol} ${runnerUp.confidence}%</span>`
+    : '';
+
+  return `
+    <div class="detect-card detect-prev${faded}">
+      <span class="detect-prev-best">${top.symbol} <strong>${top.confidence}%</strong></span>
+      ${altHtml}
+      <span class="detect-prev-time">${age}</span>
+    </div>`;
+}
+
+/* ── Feature: Tuning indicator ─────────────────────────────── */
+
+function _renderTunerCard(note) {
+  const { noteName, octave, cents } = note;
+  const clamped = Math.max(-50, Math.min(50, cents));
+  const pct     = ((clamped + 50) / 100) * 100; // 0%=-50¢, 50%=0¢, 100%=+50¢
+
+  let needleColor;
+  const absCents = Math.abs(clamped);
+  if (absCents <= 5)       needleColor = '#4a9060';
+  else if (absCents <= 15) needleColor = '#d0a030';
+  else                     needleColor = '#d0585a';
+
+  const readout = cents === 0
+    ? 'In tune'
+    : `${cents > 0 ? '+' : ''}${cents}\u00A2 \u2014 ${Math.abs(cents) <= 5 ? 'in tune' : cents > 0 ? 'slightly sharp' : 'slightly flat'}`;
+
+  return `
+    <div class="detect-card detect-latest">
+      <div class="detect-label">Single Note</div>
+      <div class="detect-tuner">
+        <div class="detect-tuner-note">${noteName}<sub style="font-size:0.5em">${octave}</sub></div>
+        <div class="detect-tuner-meter">
+          <div class="detect-tuner-center"></div>
+          <div class="detect-tuner-needle"
+               style="left:${pct}%; background:${needleColor}"></div>
+        </div>
+        <div class="detect-tuner-labels">
+          <span>\u266D -25\u00A2</span><span>0</span><span>+25\u00A2 \u266F</span>
+        </div>
+        <div class="detect-tuner-readout">${readout}</div>
+      </div>
+    </div>`;
+}
+
+/* ── Feature: Try-again hints ──────────────────────────────── */
+
+function _getDiagnosticHint(matchResult, rmsLevel, detectedNotes) {
+  const candidateCount  = detectedNotes.size;
+  const bestConfidence  = matchResult?.candidates?.[0]?.confidence || 0;
+
+  if (rmsLevel > 0 && rmsLevel < 0.02) {
+    return { icon: '\uD83D\uDD07', text: 'Very quiet \u2014 try strumming harder or moving closer to the mic' };
+  }
+  if (candidateCount < 2 && matchResult !== null) {
+    return { icon: '\uD83C\uDFB5', text: 'Only one note came through clearly \u2014 try strumming all the strings' };
+  }
+  if (candidateCount > 6) {
+    return { icon: '\uD83D\uDD0A', text: 'Lots of frequencies detected \u2014 try a quieter room or get closer to the mic' };
+  }
+  if (candidateCount >= 2 && candidateCount <= 6 && bestConfidence < 40) {
+    return { icon: '\uD83E\uDD14', text: "Those notes don\u2019t match a standard chord \u2014 check your finger placement?" };
+  }
+  if (bestConfidence >= 40 && bestConfidence < 55) {
+    return { icon: '\uD83C\uDFAF', text: 'Close but not clear \u2014 let the chord ring a bit longer after strumming' };
+  }
+  if (matchResult?.candidates?.length >= 2) {
+    const gap = matchResult.candidates[0].confidence - matchResult.candidates[1].confidence;
+    if (gap < 10) {
+      return { icon: '\u2696\uFE0F', text: 'Could be either chord \u2014 the 3rd might be muted. Try strumming more evenly.' };
+    }
+  }
+  return null;
+}
+
+function _renderHint(hint) {
+  return `
+    <div class="detect-hint">
+      <span class="detect-hint-icon">${hint.icon}</span>
+      <span class="detect-hint-text">${hint.text}</span>
+    </div>`;
+}
+
+/* ── Feature: Play it back ─────────────────────────────────── */
+
+function _playCapture() {
+  if (!latestCaptureBuffer) return;
+  _stopPlayback();
+
+  const { samples, sampleRate } = latestCaptureBuffer;
+  const startSample = Math.floor((scrubSelection.startMs / 1000) * sampleRate);
+  const endSample   = Math.floor((scrubSelection.endMs   / 1000) * sampleRate);
+  const region      = samples.slice(startSample, endSample);
+
+  // Use Tone.js AudioContext so we don't open a third AudioContext on mobile
+  let ctx;
+  try {
+    ctx = window.Tone ? Tone.context : new AudioContext();
+  } catch (_) {
+    return;
+  }
+
+  const audioBuf = ctx.createBuffer(1, region.length, sampleRate);
+  audioBuf.copyToChannel(region, 0);
+
+  playbackSource = ctx.createBufferSource();
+  playbackSource.buffer = audioBuf;
+  playbackSource.connect(ctx.destination);
+  playbackSource.start();
+
+  playbackSource.onended = () => {
+    playbackSource = null;
+    _updatePlaybackButton(false);
+  };
+
+  _updatePlaybackButton(true);
+}
+
+function _stopPlayback() {
+  if (playbackSource) {
+    try { playbackSource.stop(); } catch (_) { /* already ended */ }
+    playbackSource = null;
+  }
+  _updatePlaybackButton(false);
+}
+
+function _updatePlaybackButton(isPlaying) {
+  const btn = document.getElementById('detect-playback-btn');
+  if (!btn) return;
+  btn.textContent = isPlaying ? '\u23F9 Stop' : '\u25B6 Play back';
+  btn.classList.toggle('playing', isPlaying);
+}
+
+/* ── Feature: Manual scrub ─────────────────────────────────── */
+
+function _renderWaveformWidget() {
+  return `
+    <div class="detect-waveform-wrap" id="detect-waveform-wrap">
+      <canvas class="detect-waveform-canvas" id="detect-waveform-canvas"
+              height="60"></canvas>
+      <div class="detect-waveform-time-axis">
+        <span>0.0s</span><span>0.3s</span><span>0.6s</span><span>0.9s</span><span>1.2s</span>
+      </div>
+      <button class="detect-reanalyse-btn" id="detect-reanalyse-btn"
+              data-listener-action="reanalyse-selection">
+        Re-analyse selection
+      </button>
+    </div>`;
+}
+
+function _initWaveform() {
+  const canvas = document.getElementById('detect-waveform-canvas');
+  if (!canvas || !latestCaptureBuffer) return;
+
+  // Set canvas width to match CSS layout width
+  canvas.width = canvas.offsetWidth || 300;
+
+  _drawWaveform(canvas);
+  _attachScrubListeners(canvas);
+}
+
+function _drawWaveform(canvas) {
+  if (!latestCaptureBuffer) return;
+  const { samples, sampleRate, durationMs } = latestCaptureBuffer;
+
+  const ctx = canvas.getContext('2d');
+  const w   = canvas.width;
+  const h   = canvas.height;
+
+  // Background
+  const isDark = document.documentElement.classList.contains('dark') ||
+                 document.body.classList.contains('dark');
+  ctx.fillStyle = isDark ? '#1e1c24' : '#f0ece6';
+  ctx.fillRect(0, 0, w, h);
+
+  // Downsample to canvas width
+  const blockSize = Math.floor(samples.length / w);
+  const points = [];
+  for (let i = 0; i < w; i++) {
+    let sum = 0;
+    const start = i * blockSize;
+    for (let j = start; j < start + blockSize && j < samples.length; j++) {
+      sum += Math.abs(samples[j]);
+    }
+    points.push(blockSize > 0 ? sum / blockSize : 0);
+  }
+  const maxVal = Math.max(...points, 0.01);
+
+  // Draw waveform bars (mirrored around centre)
+  ctx.fillStyle = isDark ? '#3a3050' : '#c5b8d8';
+  for (let i = 0; i < w; i++) {
+    const barH = (points[i] / maxVal) * (h * 0.8);
+    ctx.fillRect(i, (h - barH) / 2, 1, barH);
+  }
+
+  // Selection overlay
+  const totalMs    = durationMs;
+  const selStartX  = (scrubSelection.startMs / totalMs) * w;
+  const selEndX    = (scrubSelection.endMs   / totalMs) * w;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.fillRect(0, 0, selStartX, h);
+  ctx.fillRect(selEndX, 0, w - selEndX, h);
+
+  // Selection border lines
+  ctx.strokeStyle = '#6a50a0';
+  ctx.lineWidth   = 2;
+  ctx.beginPath();
+  ctx.moveTo(selStartX, 0); ctx.lineTo(selStartX, h);
+  ctx.moveTo(selEndX,   0); ctx.lineTo(selEndX,   h);
+  ctx.stroke();
+
+  // Drag handles (larger touch targets)
+  ctx.fillStyle = '#6a50a0';
+  ctx.fillRect(selStartX - 6, 0, 12, h);
+  ctx.fillRect(selEndX   - 6, 0, 12, h);
+}
+
+function _attachScrubListeners(canvas) {
+  // Clean up previous listeners by replacing with a fresh clone
+  const fresh = canvas.cloneNode(true);
+  canvas.parentNode.replaceChild(fresh, canvas);
+
+  const MIN_SELECTION_MS = 200;
+
+  function getMs(clientX) {
+    const rect  = fresh.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return ratio * (latestCaptureBuffer?.durationMs || 1200);
+  }
+
+  function getEdge(clientX) {
+    const rect     = fresh.getBoundingClientRect();
+    const totalMs  = latestCaptureBuffer?.durationMs || 1200;
+    const startPx  = (scrubSelection.startMs / totalMs) * rect.width;
+    const endPx    = (scrubSelection.endMs   / totalMs) * rect.width;
+    const x        = clientX - rect.left;
+    const HANDLE   = 14;
+    if (Math.abs(x - startPx) < HANDLE) return 'start';
+    if (Math.abs(x - endPx)   < HANDLE) return 'end';
+    return 'region';
+  }
+
+  function onDown(clientX) {
+    scrubDragging   = true;
+    scrubDragEdge   = getEdge(clientX);
+    scrubDragStartX = clientX;
+    scrubDragStartMs = scrubDragEdge === 'start' ? scrubSelection.startMs
+                     : scrubDragEdge === 'end'   ? scrubSelection.endMs
+                     : getMs(clientX);
+  }
+
+  function onMove(clientX) {
+    if (!scrubDragging) return;
+    const totalMs = latestCaptureBuffer?.durationMs || 1200;
+    const rect    = fresh.getBoundingClientRect();
+    const dMs     = ((clientX - scrubDragStartX) / rect.width) * totalMs;
+
+    if (scrubDragEdge === 'start') {
+      const newStart = Math.max(0, Math.min(scrubSelection.endMs - MIN_SELECTION_MS,
+                                            scrubDragStartMs + dMs));
+      scrubSelection.startMs = newStart;
+    } else if (scrubDragEdge === 'end') {
+      const newEnd = Math.min(totalMs, Math.max(scrubSelection.startMs + MIN_SELECTION_MS,
+                                                scrubDragStartMs + dMs));
+      scrubSelection.endMs = newEnd;
+    } else {
+      // New selection by dragging in region
+      const clickMs = scrubDragStartMs;
+      const nowMs   = getMs(clientX);
+      scrubSelection.startMs = Math.max(0,       Math.min(clickMs, nowMs));
+      scrubSelection.endMs   = Math.min(totalMs, Math.max(clickMs, nowMs));
+      if (scrubSelection.endMs - scrubSelection.startMs < MIN_SELECTION_MS) {
+        scrubSelection.endMs = Math.min(totalMs, scrubSelection.startMs + MIN_SELECTION_MS);
       }
     }
 
-    // Method 2: FFT peaks for polyphonic content
-    analyser.getFloatFrequencyData(freqBuffer);
-    const peaks = fftPeaks(freqBuffer, sr, analyser.frequencyBinCount);
-    for (const midi of peaks) {
-      accumulator.addDetection(midi, 0.7, now); // Slightly lower confidence than YIN
+    _drawWaveform(fresh);
+    _showReanalyseBtn();
+  }
+
+  function onUp() {
+    scrubDragging = false;
+    scrubDragEdge = null;
+  }
+
+  // Mouse
+  fresh.addEventListener('mousedown',  e => { onDown(e.clientX); });
+  window.addEventListener('mousemove', e => { if (scrubDragging) onMove(e.clientX); });
+  window.addEventListener('mouseup',   () => onUp());
+
+  // Touch
+  fresh.addEventListener('touchstart', e => {
+    e.preventDefault();
+    onDown(e.touches[0].clientX);
+  }, { passive: false });
+  fresh.addEventListener('touchmove', e => {
+    e.preventDefault();
+    onMove(e.touches[0].clientX);
+  }, { passive: false });
+  fresh.addEventListener('touchend', () => onUp());
+
+  _drawWaveform(fresh);
+}
+
+function _showReanalyseBtn() {
+  const btn = document.getElementById('detect-reanalyse-btn');
+  if (btn) btn.classList.add('visible');
+}
+
+function _reanalyseSelection() {
+  if (!latestCaptureBuffer || !pitchAnalyser || !matcher) return;
+
+  _setStateLabel('Analysing\u2026');
+
+  setTimeout(() => {
+    const { samples, sampleRate, durationMs } = latestCaptureBuffer;
+    const startSample = Math.floor((scrubSelection.startMs / 1000) * sampleRate);
+    const endSample   = Math.floor((scrubSelection.endMs   / 1000) * sampleRate);
+
+    const subBuffer = {
+      samples:    samples.slice(startSample, endSample),
+      sampleRate,
+      durationMs: scrubSelection.endMs - scrubSelection.startMs,
+    };
+
+    const analysis   = pitchAnalyser.analyse(subBuffer);
+    let matchResult  = null;
+    if (analysis.pitchClasses.size >= 2) {
+      matchResult = matcher.match(analysis.pitchClasses);
     }
-  }
 
-  // Update display periodically
-  const now = performance.now();
-  if (now - lastUpdateTime > UPDATE_DEBOUNCE) {
-    const activeNotes = accumulator.getActiveNotes();
-    if (activeNotes.size >= 2) {
-      const match = matcher.match(activeNotes);
-      updateDisplay(match, activeNotes);
-    } else if (activeNotes.size === 0) {
-      updateDisplay(null, activeNotes);
+    // Update the latest history entry in-place
+    if (detectionHistory.length > 0) {
+      if (matchResult && matchResult.candidates.length > 0) {
+        detectionHistory[0].candidates    = matchResult.candidates;
+        detectionHistory[0].detectedNotes = matchResult.detectedNotes;
+        detectionHistory[0].isSingleNote  = analysis.isSingleNote;
+        detectionHistory[0].dominantNote  = analysis.dominantNote;
+      }
     }
-    // If size is 1, keep showing previous result (might be mid-strum)
-    lastUpdateTime = now;
-  }
 
-  animFrameId = requestAnimationFrame(listenLoop);
+    _setStateLabel('');
+    _renderResults();
+  }, 0);
 }
 
-/**
- * Build a star string for the given confidence level (0-4).
- * @param {number} confidence
- * @returns {string}
- */
-function confidenceStars(confidence) {
-  return '\u2605'.repeat(confidence) + '\u2606'.repeat(4 - confidence);
+/* ── UI helpers ────────────────────────────────────────────── */
+
+function _setStateLabel(text) {
+  const el = document.getElementById('listener-state-label');
+  if (el) el.textContent = text;
 }
 
-/**
- * Update the live status display and log sustained chords to history.
- * A chord must be stable for STABLE_MS before it's logged — prevents
- * transient misidentifications from cluttering the list.
- */
-function updateDisplay(match, activeNotes) {
-  const status = document.getElementById('listener-status');
-  if (!status) return;
-
-  if (!match) {
-    currentMatch = null;
-    stableMatchStart = 0;
-    status.textContent = 'Listening\u2026';
-    status.className = 'listener-hint';
-    return;
-  }
-
-  currentMatch = match;
-  const chordKey = match.rootIdx + '-' + match.typeIdx;
-  const now = performance.now();
-  const symbol = chordSymbol(match.rootIdx, match.typeIdx);
-  const pct = Math.round(match.score / (match.score + 2) * 100); // rough %
-
-  // Show current detection in the status line
-  const heardNames = [...activeNotes].sort((a, b) => a - b)
-    .map(pc => NOTE_NAMES[pc]);
-  status.innerHTML = `<span class="listener-live-chord">${symbol}</span> ` +
-    `<span class="listener-live-pct">${pct}%</span> ` +
-    `<span class="listener-live-heard">${heardNames.join(' ')}</span>`;
-  status.className = 'listener-status-active';
-
-  // Track stability — only log after STABLE_MS of the same chord
-  if (chordKey !== lastLoggedChord) {
-    // Different chord detected — start stability timer
-    if (chordKey !== (currentMatch._prevKey || null)) {
-      stableMatchStart = now;
-      currentMatch._prevKey = chordKey;
-    } else if (now - stableMatchStart >= STABLE_MS) {
-      // Stable long enough — log it
-      logChord(match, pct);
-      lastLoggedChord = chordKey;
-      currentMatch._prevKey = null;
-    }
-  }
+function _showError(msg) {
+  const el = document.getElementById('listener-results');
+  if (el) el.innerHTML = `<p class="listener-error">${msg}</p>`;
 }
 
-/**
- * Add a chord to the history log and render it.
- */
-function logChord(match, pct) {
-  const entry = {
-    rootIdx: match.rootIdx,
-    typeIdx: match.typeIdx,
-    symbol: chordSymbol(match.rootIdx, match.typeIdx),
-    notes: chordNoteNames(match.rootIdx, match.typeIdx).join(' \u2013 '),
-    confidence: match.confidence,
-    pct: pct,
-    time: new Date(),
-  };
-
-  chordHistory.unshift(entry);
-  if (chordHistory.length > MAX_HISTORY) chordHistory.pop();
-
-  // Auto-navigate the explorer to this chord
-  navigateToChord(match.rootIdx, match.typeIdx);
-
-  // Show the history container + clear button
-  const container = document.getElementById('listener-history-container');
-  if (container) container.style.display = '';
-  const clearBtn = document.getElementById('listener-clear-btn');
-  if (clearBtn) clearBtn.style.display = '';
-
-  renderHistory();
+function _updateLevelMeter(rms) {
+  const fill = document.getElementById('listener-level-fill');
+  if (!fill) return;
+  const pct = Math.min(rms / 0.3, 1) * 100;
+  fill.style.width = pct + '%';
+  fill.className   = 'listener-level-fill' + (rms >= 0.04 ? ' active' : '');
 }
 
-/**
- * Render the chord history list.
- */
-function renderHistory() {
-  const list = document.getElementById('listener-history');
-  if (!list) return;
+function _relativeTime(timestamp) {
+  const sec = Math.round((Date.now() - timestamp) / 1000);
+  if (sec < 5)  return 'just now';
+  if (sec < 60) return `${sec}s ago`;
+  return `${Math.floor(sec / 60)}m ago`;
+}
 
-  if (chordHistory.length === 0) {
-    list.innerHTML = '';
-    return;
+function _isOld(timestamp) {
+  return (Date.now() - timestamp) > 30000;
+}
+
+function _startTimestampRefresh() {
+  if (timestampInterval != null) return;
+  timestampInterval = setInterval(() => {
+    if (detectionHistory.length > 0) _renderResults();
+  }, TIMESTAMP_REFRESH_MS);
+}
+
+function _stopTimestampRefresh() {
+  if (timestampInterval != null) {
+    clearInterval(timestampInterval);
+    timestampInterval = null;
   }
-
-  list.innerHTML = chordHistory.map((entry, i) => {
-    const timeStr = entry.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const stars = confidenceStars(entry.confidence);
-    const isNewest = i === 0;
-    return `
-      <div class="listener-history-row${isNewest ? ' newest' : ''}"
-           data-listener-action="history-chord"
-           data-root="${entry.rootIdx}"
-           data-type="${entry.typeIdx}">
-        <span class="lh-chord">${entry.symbol}</span>
-        <span class="lh-pct">${entry.pct}%</span>
-        <span class="lh-stars">${stars}</span>
-        <span class="lh-notes">${entry.notes}</span>
-        <span class="lh-time">${timeStr}</span>
-      </div>`;
-  }).join('');
 }

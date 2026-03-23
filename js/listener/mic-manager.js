@@ -8,6 +8,9 @@
  * on Android where a shared context can cause silent mic input or
  * broken audio routing.
  *
+ * Exposes getContext() and getSource() so AudioCapture can attach a
+ * ScriptProcessorNode to the same source without re-requesting mic access.
+ *
  * No dependencies.
  */
 
@@ -52,24 +55,23 @@ export class MicManager {
         audio: {
           echoCancellation: false,
           noiseSuppression: false,
-          autoGainControl: false,
+          autoGainControl:  false,
         }
       });
 
       // 2. Create a dedicated AudioContext for mic analysis
       this.ctx = new AudioContext();
 
-      // 3. Create an AnalyserNode tuned for guitar pitch detection
-      //    - fftSize 4096 → 2048 frequency bins, giving ~10.7 Hz resolution
-      //      at 44100 Hz sample rate. Enough to distinguish low E2 (82 Hz)
-      //      from nearby semitones.
-      //    - smoothingTimeConstant 0.8 keeps the spectrum stable between frames
-      //      without lagging too far behind quick note changes.
+      // 3. Create an AnalyserNode tuned for onset detection (lightweight RMS)
+      //    fftSize 2048, smoothingTimeConstant 0.3 per spec — fast response
+      //    for catching strum transients.
       this.analyser = this.ctx.createAnalyser();
-      this.analyser.fftSize = 4096;
-      this.analyser.smoothingTimeConstant = 0.8;
+      this.analyser.fftSize = 2048;
+      this.analyser.smoothingTimeConstant = 0.3;
 
       // 4. Connect: stream source → analyser (NOT to destination — no feedback)
+      //    The source is also exposed so AudioCapture can attach its own
+      //    ScriptProcessorNode to the same node.
       this.source = this.ctx.createMediaStreamSource(this.stream);
       this.source.connect(this.analyser);
 
@@ -110,16 +112,35 @@ export class MicManager {
       });
     }
 
-    this.ctx = null;
+    this.ctx      = null;
     this.analyser = null;
-    this.stream = null;
-    this.source = null;
-    this.active = false;
+    this.stream   = null;
+    this.source   = null;
+    this.active   = false;
   }
 
-  /** @returns {AnalyserNode|null} The analyser for reading frequency/time-domain data. */
+  /** @returns {AnalyserNode|null} The analyser for RMS onset detection. */
   getAnalyser() {
     return this.analyser;
+  }
+
+  /**
+   * The raw AudioContext — needed by AudioCapture to create a
+   * ScriptProcessorNode in the same graph.
+   * @returns {AudioContext|null}
+   */
+  getContext() {
+    return this.ctx;
+  }
+
+  /**
+   * The MediaStreamAudioSourceNode — AudioCapture connects its
+   * ScriptProcessorNode here so both the analyser and the capture node
+   * share the same mic signal without requesting access twice.
+   * @returns {MediaStreamAudioSourceNode|null}
+   */
+  getSource() {
+    return this.source;
   }
 
   /** @returns {number} Sample rate of the mic AudioContext, or 44100 as a sensible default. */
