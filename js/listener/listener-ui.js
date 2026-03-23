@@ -245,40 +245,63 @@ function _beginCapture() {
 
 function _beginAnalysis() {
   _setState(STATE.ANALYSING);
+
+  const buf = audioCapture.getBuffer();
+  if (!buf) {
+    _setState(STATE.LISTENING);
+    _setStateLabel('Listening\u2026');
+    _listenLoop();
+    return;
+  }
+
+  // Save buffer for playback + scrub
+  latestCaptureBuffer = buf;
+  scrubSelection      = { startMs: 0, endMs: buf.durationMs };
+  waveformVisible     = false;
+
+  // ── Stage 1: Quick (~50ms) — show a rough result fast ─────
   _setStateLabel('Analysing\u2026');
 
   setTimeout(() => {
-    const buf = audioCapture.getBuffer();
-    if (!buf) {
-      _setState(STATE.LISTENING);
-      _setStateLabel('Listening\u2026');
-      _listenLoop();
-      return;
+    const quickAnalysis = pitchAnalyser.analyseQuick(buf);
+    let quickMatch = null;
+    if (quickAnalysis.pitchClasses.size >= 2) {
+      quickMatch = matcher.match(quickAnalysis.pitchClasses);
     }
-
-    // Save buffer for playback + scrub
-    latestCaptureBuffer = buf;
-    scrubSelection      = { startMs: 0, endMs: buf.durationMs };
-    waveformVisible     = false;
-
-    const analysis   = pitchAnalyser.analyse(buf);
-    let matchResult  = null;
-
-    if (analysis.pitchClasses.size >= 2) {
-      matchResult = matcher.match(analysis.pitchClasses);
-    }
-
-    _addToHistory(matchResult, analysis);
-
-    _setState(STATE.LISTENING);
-    _setStateLabel('Listening\u2026');
+    _addToHistory(quickMatch, quickAnalysis);
     _renderResults();
 
-    if (waveformVisible) {
-      requestAnimationFrame(() => _initWaveform());
-    }
+    // ── Stage 2: Full (~300ms) — refine with multi-resolution ─
+    _setStateLabel('Refining\u2026');
 
-    animFrameId = requestAnimationFrame(_listenLoop);
+    setTimeout(() => {
+      const fullAnalysis = pitchAnalyser.analyseFull(buf);
+      let fullMatch = null;
+      if (fullAnalysis.pitchClasses.size >= 2) {
+        fullMatch = matcher.match(fullAnalysis.pitchClasses);
+      }
+      _updateLatestEntry(fullMatch, fullAnalysis);
+      _renderResults();
+
+      // ── Stage 3: Deep (~600ms) — consensus voting, final answer ─
+      _setStateLabel('Deep analysis\u2026');
+
+      setTimeout(() => {
+        const deepAnalysis = pitchAnalyser.analyseDeep(buf);
+        let deepMatch = null;
+        if (deepAnalysis.pitchClasses.size >= 2) {
+          deepMatch = matcher.match(deepAnalysis.pitchClasses);
+        }
+        _updateLatestEntry(deepMatch, deepAnalysis);
+        _setStateLabel('');
+        _renderResults();
+
+        // Resume listening for the next onset
+        _setState(STATE.LISTENING);
+        _setStateLabel('Listening\u2026');
+        animFrameId = requestAnimationFrame(_listenLoop);
+      }, 0);
+    }, 0);
   }, 0);
 }
 
@@ -318,6 +341,30 @@ function _addToHistory(matchResult, analysis) {
     if (clearBtn) clearBtn.style.display = '';
   }
   // Else: nothing detected — don't add to history
+}
+
+/**
+ * Update the latest history entry in-place with improved analysis results.
+ * Called by Stage 2 and Stage 3 to refine the rough Stage 1 result.
+ */
+function _updateLatestEntry(matchResult, analysis) {
+  if (detectionHistory.length === 0) return;
+
+  if (matchResult && matchResult.candidates.length > 0) {
+    detectionHistory[0].candidates    = matchResult.candidates;
+    detectionHistory[0].detectedNotes = matchResult.detectedNotes;
+    detectionHistory[0].isSingleNote  = analysis.isSingleNote;
+    detectionHistory[0].dominantNote  = analysis.dominantNote;
+
+    // Update explorer silently with the refined match
+    navigateToChord(matchResult.candidates[0].rootIdx, matchResult.candidates[0].typeIdx, { switchToTab: false });
+
+  } else if (analysis.isSingleNote && analysis.dominantNote) {
+    detectionHistory[0].candidates    = [];
+    detectionHistory[0].detectedNotes = [...(analysis.pitchClasses?.keys() || [])];
+    detectionHistory[0].isSingleNote  = true;
+    detectionHistory[0].dominantNote  = analysis.dominantNote;
+  }
 }
 
 /* ── Rendering ─────────────────────────────────────────────── */
@@ -813,10 +860,10 @@ function _showReanalyseBtn() {
 function _reanalyseSelection() {
   if (!latestCaptureBuffer || !pitchAnalyser || !matcher) return;
 
-  _setStateLabel('Analysing\u2026');
+  _setStateLabel('Re-analysing\u2026');
 
   setTimeout(() => {
-    const { samples, sampleRate, durationMs } = latestCaptureBuffer;
+    const { samples, sampleRate } = latestCaptureBuffer;
     const startSample = Math.floor((scrubSelection.startMs / 1000) * sampleRate);
     const endSample   = Math.floor((scrubSelection.endMs   / 1000) * sampleRate);
 
@@ -826,22 +873,14 @@ function _reanalyseSelection() {
       durationMs: scrubSelection.endMs - scrubSelection.startMs,
     };
 
-    const analysis   = pitchAnalyser.analyse(subBuffer);
-    let matchResult  = null;
+    // Run the full deep analysis on the selected region
+    const analysis  = pitchAnalyser.analyseDeep(subBuffer);
+    let matchResult = null;
     if (analysis.pitchClasses.size >= 2) {
       matchResult = matcher.match(analysis.pitchClasses);
     }
 
-    // Update the latest history entry in-place
-    if (detectionHistory.length > 0) {
-      if (matchResult && matchResult.candidates.length > 0) {
-        detectionHistory[0].candidates    = matchResult.candidates;
-        detectionHistory[0].detectedNotes = matchResult.detectedNotes;
-        detectionHistory[0].isSingleNote  = analysis.isSingleNote;
-        detectionHistory[0].dominantNote  = analysis.dominantNote;
-      }
-    }
-
+    _updateLatestEntry(matchResult, analysis);
     _setStateLabel('');
     _renderResults();
   }, 0);
