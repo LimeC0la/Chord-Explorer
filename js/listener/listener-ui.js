@@ -8,7 +8,7 @@
  *
  * - IDLE:       Mic off. Button says "Start Listening".
  * - LISTENING:  Mic on, onset detector running in rAF loop.
- * - CAPTURING:  Onset detected, AudioCapture recording for 1200ms.
+ * - CAPTURING:  Onset detected, AudioCapture recording (adaptive duration).
  * - ANALYSING:  Buffer complete, running PitchAnalyser + ChordMatcher (~100-200ms).
  * - DISPLAYING: Result shown. Monitor for next onset.
  *
@@ -687,8 +687,8 @@ function _renderWaveformWidget() {
     <div class="detect-waveform-wrap" id="detect-waveform-wrap">
       <canvas class="detect-waveform-canvas" id="detect-waveform-canvas"
               height="60"></canvas>
-      <div class="detect-waveform-time-axis">
-        <span>0.0s</span><span>0.3s</span><span>0.6s</span><span>0.9s</span><span>1.2s</span>
+      <div class="detect-waveform-time-axis" id="detect-waveform-time-axis">
+        <span>0.0s</span><span>...</span><span>...</span><span>...</span><span>...</span>
       </div>
       <button class="detect-reanalyse-btn" id="detect-reanalyse-btn"
               data-listener-action="reanalyse-selection">
@@ -703,6 +703,18 @@ function _initWaveform() {
 
   // Set canvas width to match CSS layout width
   canvas.width = canvas.offsetWidth || 300;
+
+  // Update time axis labels based on actual capture duration
+  const timeAxis = document.getElementById('detect-waveform-time-axis');
+  if (timeAxis) {
+    const dur = latestCaptureBuffer.durationMs / 1000;
+    const spans = timeAxis.querySelectorAll('span');
+    if (spans.length >= 5) {
+      for (let i = 0; i < 5; i++) {
+        spans[i].textContent = (dur * i / 4).toFixed(1) + 's';
+      }
+    }
+  }
 
   _drawWaveform(canvas);
   _attachScrubListeners(canvas);
