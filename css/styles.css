@@ -2171,3 +2171,141 @@
   .dark .detect-waveform-time-axis { color: #4a4060; }
   .dark .detect-reanalyse-btn { border-color: #3a3050; color: #8a70c0; }
   .dark .detect-reanalyse-btn:hover { background: #2a2438; }
+
+  /* ---- Mode toggle ---- */
+  .listener-mode-toggle {
+    display: flex;
+    gap: 0;
+    margin-bottom: 0.6rem;
+    border: 1px solid #d0c8be;
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .mode-btn {
+    flex: 1;
+    padding: 0.45rem 0.6rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: none;
+    background: transparent;
+    color: #7a7570;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .mode-btn.active {
+    background: #6a50a0;
+    color: #fff;
+  }
+
+  .mode-btn:hover:not(.active) {
+    background: rgba(106, 80, 160, 0.08);
+  }
+
+  .dark .listener-mode-toggle { border-color: #3a3050; }
+  .dark .mode-btn { color: #6a6080; }
+  .dark .mode-btn.active { background: #7a60b0; }
+  .dark .mode-btn:hover:not(.active) { background: rgba(138, 112, 192, 0.08); }
+
+  /* ---- Live tuner display ---- */
+  .tuner-live {
+    text-align: center;
+    padding: 1.5rem 0.5rem 1rem;
+  }
+
+  .tuner-live-note {
+    font-family: 'Lora', serif;
+    font-size: 3.5rem;
+    font-weight: 700;
+    color: #3a3530;
+    line-height: 1;
+    transition: color 0.1s;
+  }
+
+  .tuner-live-note.tuner-in-tune { color: #4a9060; }
+  .tuner-live-note.tuner-no-signal { color: #b0a89e; }
+
+  .tuner-live-octave {
+    font-size: 1.2rem;
+    color: #7a7570;
+    margin-top: 0.1rem;
+  }
+
+  .tuner-live-meter {
+    position: relative;
+    height: 14px;
+    background: #ede9e3;
+    border-radius: 7px;
+    margin: 1.2rem auto 0;
+    max-width: 280px;
+  }
+
+  .tuner-live-needle {
+    position: absolute;
+    top: -4px;
+    width: 6px;
+    height: 22px;
+    border-radius: 3px;
+    background: #b0a89e;
+    transform: translateX(-50%);
+    transition: left 0.08s ease-out, background 0.1s;
+  }
+
+  .tuner-live-center {
+    position: absolute;
+    top: -5px;
+    left: 50%;
+    width: 2px;
+    height: 24px;
+    background: #b0a89e;
+    transform: translateX(-50%);
+    border-radius: 1px;
+  }
+
+  .tuner-live-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.7rem;
+    color: #b0a89e;
+    max-width: 280px;
+    margin: 0.25rem auto 0;
+  }
+
+  .tuner-live-readout {
+    margin-top: 1rem;
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+  }
+
+  .tuner-live-freq {
+    font-size: 0.85rem;
+    color: #7a7570;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tuner-live-cents {
+    font-size: 0.85rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dark .tuner-live-note { color: #e0d8f0; }
+  .dark .tuner-live-note.tuner-in-tune { color: #6ab080; }
+  .dark .tuner-live-note.tuner-no-signal { color: #4a4060; }
+  .dark .tuner-live-octave { color: #6a6080; }
+  .dark .tuner-live-meter { background: #2e2a38; }
+  .dark .tuner-live-needle { background: #5a5470; }
+  .dark .tuner-live-center { background: #5a5470; }
+  .dark .tuner-live-labels { color: #4a4060; }
+  .dark .tuner-live-freq { color: #8a8298; }
+
+  /* ---- Single note message in chord mode ---- */
+  .detect-single-note-msg {
+    font-size: 0.8rem;
+    color: #7a7570;
+    line-height: 1.5;
+    margin: 0.4rem 0;
+  }
+  .dark .detect-single-note-msg { color: #8a8298; }

@@ -148,6 +148,25 @@ export class MicManager {
     return this.ctx ? this.ctx.sampleRate : 44100;
   }
 
+  /**
+   * Create an additional AnalyserNode connected to the same mic source.
+   * Useful for modes that need different analyser settings (e.g. tuner
+   * wants higher smoothing than onset detection).
+   *
+   * The caller must disconnect the returned node when done.
+   *
+   * @param {{ fftSize?: number, smoothingTimeConstant?: number }} opts
+   * @returns {AnalyserNode|null}
+   */
+  createAnalyserNode({ fftSize = 2048, smoothingTimeConstant = 0.8 } = {}) {
+    if (!this.ctx || !this.source) return null;
+    const node = this.ctx.createAnalyser();
+    node.fftSize = fftSize;
+    node.smoothingTimeConstant = smoothingTimeConstant;
+    this.source.connect(node);
+    return node;
+  }
+
   /** @returns {boolean} Whether the mic pipeline is currently active. */
   isActive() {
     return this.active;
