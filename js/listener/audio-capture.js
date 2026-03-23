@@ -148,7 +148,7 @@ export class AudioCapture {
    *   Only valid after isComplete() is true.
    */
   getBuffer() {
-    if (!this._complete || !this._buffer) return null;
+    if (!this._complete || !this._buffer || this._buffer.length === 0) return null;
     return {
       samples:    this._buffer,
       sampleRate: this._micManager.getSampleRate(),

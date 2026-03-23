@@ -316,10 +316,10 @@ export class PitchAnalyser {
 
           for (const peak of peaks) {
             const pc = ((peak.midi % 12) + 12) % 12;
-            hpsHits[pc] += 2;
-            hitCounts[pc] += 2;
-            confSums[pc] += 0.85 * 2;
-            freqSums[pc] += peak.frequency * 2;
+            hpsHits[pc]++;
+            hitCounts[pc]++;
+            confSums[pc] += 0.85;
+            freqSums[pc] += peak.frequency;
           }
         }
       }
@@ -651,7 +651,9 @@ function harmonicProductSpectrum(windowed, sampleRate, fftSize, minFreq, maxFreq
   for (let i = 0; i < hpsLen; i++) {
     let product = mags[i];
     for (let h = 2; h <= order; h++) {
-      product *= mags[i * h] || 1e-10;
+      const idx = i * h;
+      if (idx >= binCount) { product *= 1e-10; continue; }
+      product *= mags[idx] || 1e-10;
     }
     hps[i] = product;
   }

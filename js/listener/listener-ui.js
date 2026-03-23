@@ -59,7 +59,7 @@ let detectionHistory = [];
 let latestCaptureBuffer = null;  // { samples: Float32Array, sampleRate: number, durationMs: number }
 
 // Scrub selection state
-let scrubSelection = { startMs: 0, endMs: 1200 };
+let scrubSelection = { startMs: 0, endMs: 0 };
 let waveformVisible = false;
 let scrubDragging = false;
 let scrubDragEdge = null; // 'start' | 'end' | 'region'
@@ -153,7 +153,7 @@ export function applyDetection(rootIdx, typeIdx) {
 export function clearHistory() {
   detectionHistory    = [];
   latestCaptureBuffer = null;
-  scrubSelection      = { startMs: 0, endMs: 1200 };
+  scrubSelection      = { startMs: 0, endMs: 0 };
   waveformVisible     = false;
   _stopPlayback();
   _renderResults();
@@ -641,10 +641,12 @@ function _playCapture() {
   const endSample   = Math.floor((scrubSelection.endMs   / 1000) * sampleRate);
   const region      = samples.slice(startSample, endSample);
 
-  // Use Tone.js AudioContext so we don't open a third AudioContext on mobile
+  // Use mic manager's AudioContext for playback if available,
+  // otherwise create a temporary one. Avoids touching Tone.js context
+  // which may not be initialised yet.
   let ctx;
   try {
-    ctx = window.Tone ? Tone.context : new AudioContext();
+    ctx = (micManager && micManager.getContext()) || new AudioContext();
   } catch (_) {
     return;
   }
