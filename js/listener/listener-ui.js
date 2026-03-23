@@ -474,6 +474,9 @@ function _renderTunerCard(note) {
     ? 'In tune'
     : `${cents > 0 ? '+' : ''}${cents}\u00A2 \u2014 ${Math.abs(cents) <= 5 ? 'in tune' : cents > 0 ? 'slightly sharp' : 'slightly flat'}`;
 
+  const waveformToggleText = waveformVisible ? 'Hide waveform' : 'Show waveform';
+  const waveformHtml = waveformVisible ? _renderWaveformWidget() : '';
+
   return `
     <div class="detect-card detect-latest">
       <div class="detect-label">Single Note</div>
@@ -488,6 +491,19 @@ function _renderTunerCard(note) {
           <span>\u266D -25\u00A2</span><span>0</span><span>+25\u00A2 \u266F</span>
         </div>
         <div class="detect-tuner-readout">${readout}</div>
+      </div>
+      ${waveformHtml}
+      <div class="detect-actions">
+        ${latestCaptureBuffer
+          ? `<button class="detect-playback-btn" id="detect-playback-btn"
+                     data-listener-action="toggle-playback">
+               \u25B6 Play back
+             </button>`
+          : ''}
+        <button class="detect-waveform-toggle"
+                data-listener-action="toggle-waveform">
+          ${waveformToggleText}
+        </button>
       </div>
     </div>`;
 }
