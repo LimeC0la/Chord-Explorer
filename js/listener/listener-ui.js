@@ -147,7 +147,7 @@ export async function toggleMic() {
 }
 
 export function applyDetection(rootIdx, typeIdx) {
-  navigateToChord(rootIdx, typeIdx);
+  navigateToChord(rootIdx, typeIdx, { switchToTab: true });
 }
 
 export function clearHistory() {
@@ -300,8 +300,8 @@ function _addToHistory(matchResult, analysis) {
     const clearBtn = document.getElementById('listener-clear-btn');
     if (clearBtn) clearBtn.style.display = '';
 
-    // Auto-navigate explorer to top match
-    navigateToChord(matchResult.candidates[0].rootIdx, matchResult.candidates[0].typeIdx);
+    // Update explorer silently (don't switch away from Listener tab)
+    navigateToChord(matchResult.candidates[0].rootIdx, matchResult.candidates[0].typeIdx, { switchToTab: false });
 
   } else if (analysis.isSingleNote && analysis.dominantNote) {
     // Single note — store a tuner-mode entry (no candidates)
@@ -428,32 +428,69 @@ function _renderCandidateRow(candidate, isPrimary) {
 }
 
 function _renderPrevRow(entry) {
-  const top      = entry.candidates[0];
-  const runnerUp = entry.candidates[1];
-  const age      = _relativeTime(entry.timestamp);
-  const faded    = _isOld(entry.timestamp) ? ' detect-faded' : '';
+  const age   = _relativeTime(entry.timestamp);
+  const faded = _isOld(entry.timestamp) ? ' detect-faded' : '';
 
-  if (!top && entry.isSingleNote && entry.dominantNote) {
-    // Compact tuner row
+  // ── Tuner entry (single note, no chord candidates) ────────
+  if ((!entry.candidates || entry.candidates.length === 0) && entry.isSingleNote && entry.dominantNote) {
     const n = entry.dominantNote;
+    const clamped    = Math.max(-50, Math.min(50, n.cents));
+    const pct        = ((clamped + 50) / 100) * 100;
+    const absCents   = Math.abs(clamped);
+    let needleColor;
+    if (absCents <= 5)       needleColor = '#4a9060';
+    else if (absCents <= 15) needleColor = '#d0a030';
+    else                     needleColor = '#d0585a';
+    const readout = n.cents === 0
+      ? 'In tune'
+      : `${n.cents > 0 ? '+' : ''}${n.cents}\u00A2`;
+
     return `
-      <div class="detect-card detect-prev${faded}">
-        <span class="detect-prev-best">${n.noteName}${n.octave}</span>
-        <span class="detect-prev-alt">${n.cents > 0 ? '+' : ''}${n.cents}\u00A2</span>
-        <span class="detect-prev-time">${age}</span>
+      <div class="detect-card detect-history${faded}">
+        <div class="detect-history-header">
+          <span class="detect-label">Single Note</span>
+          <span class="detect-prev-time">${age}</span>
+        </div>
+        <div class="detect-tuner detect-tuner-compact">
+          <span class="detect-tuner-note-sm">${n.noteName}<sub>${n.octave}</sub></span>
+          <div class="detect-tuner-meter" style="max-width:140px;display:inline-block;flex:1">
+            <div class="detect-tuner-center"></div>
+            <div class="detect-tuner-needle" style="left:${pct}%;background:${needleColor}"></div>
+          </div>
+          <span class="detect-tuner-readout-sm">${readout}</span>
+        </div>
       </div>`;
   }
-  if (!top) return '';
 
-  const altHtml = runnerUp
-    ? `<span class="detect-prev-alt">${runnerUp.symbol} ${runnerUp.confidence}%</span>`
-    : '';
+  if (!entry.candidates || entry.candidates.length === 0) return '';
+
+  // ── Chord entry (expanded with confidence bars) ───────────
+  const top    = entry.candidates[0];
+  const others = entry.candidates.slice(1).filter(c => c.confidence >= CANDIDATE_MIN_PCT);
+
+  const candidatesHtml = [
+    _renderCandidateRow(top, true),
+    ...others.map(c => _renderCandidateRow(c, false)),
+  ].join('');
+
+  const noteNames = (entry.detectedNotes || []).map(pc => NOTE_NAMES[pc]).join(' ');
 
   return `
-    <div class="detect-card detect-prev${faded}">
-      <span class="detect-prev-best">${top.symbol} <strong>${top.confidence}%</strong></span>
-      ${altHtml}
-      <span class="detect-prev-time">${age}</span>
+    <div class="detect-card detect-history${faded}">
+      <div class="detect-history-header">
+        <span class="detect-label">Detection</span>
+        <span class="detect-prev-time">${age}</span>
+      </div>
+      <div class="detect-candidates">
+        ${candidatesHtml}
+      </div>
+      <div class="detect-notes">Notes heard: ${noteNames}</div>
+      <button class="detect-apply detect-apply-sm"
+              data-listener-action="apply-detection"
+              data-root="${top.rootIdx}"
+              data-type="${top.typeIdx}">
+        Apply ${top.symbol}
+      </button>
     </div>`;
 }
 

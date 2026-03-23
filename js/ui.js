@@ -403,15 +403,17 @@ export function onSoundChange() {
 }
 
 // ===== NAVIGATE TO CHORD =====
-export function navigateToChord(rootIdx, typeIdx) {
+export function navigateToChord(rootIdx, typeIdx, { switchToTab = true } = {}) {
   selectedRoot = rootIdx;
   selectedType = typeIdx;
   selectedInversion = 0;
   document.querySelectorAll('#root-picker .pill').forEach((p, i) => p.classList.toggle('active', i === rootIdx));
   document.querySelectorAll('#type-picker .pill').forEach((p, i) => p.classList.toggle('active', i === typeIdx));
-  switchTab('explorer');
+  if (switchToTab) {
+    switchTab('explorer');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
   renderResult();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ===== MAIN RENDER =====

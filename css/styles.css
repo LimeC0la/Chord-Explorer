@@ -1893,7 +1893,65 @@
     margin-top: 0.2rem;
   }
 
-  /* Previous (compact) rows */
+  /* History cards (expanded previous entries) */
+  .detect-history {
+    border-color: #e8e4de;
+    background: #f8f6f2;
+  }
+
+  .detect-history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.3rem;
+  }
+
+  .detect-history .detect-candidates {
+    margin-bottom: 0.4rem;
+  }
+
+  .detect-history .detect-candidate {
+    grid-template-columns: 6rem 1fr 2.2rem;
+  }
+
+  .detect-history .detect-candidate.primary .detect-chord-name {
+    font-size: 1rem;
+  }
+
+  /* Smaller apply button for history cards */
+  .detect-apply-sm {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.72rem;
+  }
+
+  /* Compact tuner in history */
+  .detect-tuner-compact {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.3rem 0;
+  }
+
+  .detect-tuner-note-sm {
+    font-family: 'Lora', serif;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #3a3530;
+  }
+
+  .detect-tuner-readout-sm {
+    font-size: 0.72rem;
+    color: #7a7570;
+    white-space: nowrap;
+  }
+
+  .detect-prev-time {
+    font-size: 0.62rem;
+    color: #b0a89e;
+    white-space: nowrap;
+  }
+
+  /* Compat: keep .detect-prev styles for any remaining compact rows */
   .detect-prev {
     display: flex;
     align-items: center;
@@ -1917,13 +1975,6 @@
     font-size: 0.72rem;
     color: #9a9590;
     flex: 1;
-  }
-
-  .detect-prev-time {
-    font-size: 0.62rem;
-    color: #b0a89e;
-    white-space: nowrap;
-    margin-left: auto;
   }
 
   /* Faded entries (>30 seconds old) */
@@ -1952,6 +2003,9 @@
   .dark .detect-notes         { color: #5a5470; }
   .dark .detect-apply         { background: #7a60b0; }
   .dark .detect-apply:hover   { background: #6a50a0; }
+  .dark .detect-history        { background: #1a1820; border-color: #2a2630; }
+  .dark .detect-tuner-note-sm { color: #e0d8f0; }
+  .dark .detect-tuner-readout-sm { color: #8a8298; }
   .dark .detect-prev          { background: #1a1820; border-color: #2a2630; }
   .dark .detect-prev-best     { color: #e0d8f0; }
   .dark .detect-prev-alt      { color: #5a5470; }
