@@ -120,15 +120,10 @@ document.addEventListener('click', function(e) {
       seqPickerRoot = newSeqRoot;
       seqPickerPreferFlat = isBlack ? true : null;
     }
-    // Update pill label with flip animation (black keys only)
+    // Update emphasis on the active black-key pill
     if (isBlack) {
-      seqRootPill.classList.add('flip');
-      setTimeout(() => {
-        seqRootPill.textContent = seqPickerPreferFlat
-          ? root.flatName
-          : (SHARP_DISPLAY[root.name] || root.name);
-        seqRootPill.classList.remove('flip');
-      }, 150);
+      seqRootPill.classList.toggle('prefer-flat', seqPickerPreferFlat === true);
+      seqRootPill.classList.toggle('prefer-sharp', seqPickerPreferFlat === false);
     }
     document.querySelectorAll('#seq-root-picker .pill').forEach((p, i) =>
       p.classList.toggle('active', i === seqPickerRoot));

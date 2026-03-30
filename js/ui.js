@@ -23,6 +23,7 @@ let progMode = 'major';
 let activePreset = 'default';
 let prevRoot = null;    // track for fade-on-chord-change
 let prevType = null;
+let prevAccidental = null;
 let skipFade = false;   // set true to bypass fade on next render
 
 // ---- Public state accessors ----
@@ -257,7 +258,15 @@ export function renderCircleOfFifths() {
       strokeCol = isDark ? '#3a3540' : '#e0dbd4';
     }
 
-    const displayLabel = root.black ? root.flatName : root.name;
+    // For the selected root, respect the user's sharp/flat preference
+    let displayLabel;
+    if (rootIdx === selectedRoot && selectedAccidental !== null && root.black) {
+      displayLabel = selectedAccidental
+        ? root.flatName
+        : (SHARP_DISPLAY[root.name] || root.name);
+    } else {
+      displayLabel = root.black ? root.flatName : root.name;
+    }
 
     svg += `<g class="cof-node" data-cof-root="${rootIdx}">`;
     svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${nodeR}" fill="${fill}" stroke="${strokeCol}" stroke-width="1.5"/>`;
@@ -277,9 +286,11 @@ export function buildPickers() {
   ROOTS.forEach((r, i) => {
     const btn = document.createElement('button');
     btn.className = 'pill' + (r.black ? ' black-note' : '');
-    // Black keys: show flat name by default; user can flip it when active
-    btn.textContent = r.black ? r.flatName : r.name;
-    if (r.black) btn.dataset.hasEnharmonic = '1';
+    if (r.black) {
+      btn.innerHTML = `<span class="enh enh-flat">${r.flatName}</span><span class="enh-sep"> / </span><span class="enh enh-sharp">${SHARP_DISPLAY[r.name] || r.name}</span>`;
+    } else {
+      btn.textContent = r.name;
+    }
     btn.dataset.rootIdx = i;
     btn.id = 'root-' + i;
     rootRow.appendChild(btn);
@@ -304,8 +315,11 @@ export function buildSequencePicker() {
   ROOTS.forEach((r, i) => {
     const btn = document.createElement('button');
     btn.className = 'pill' + (r.black ? ' black-note' : '');
-    btn.textContent = r.black ? r.flatName : r.name;
-    if (r.black) btn.dataset.hasEnharmonic = '1';
+    if (r.black) {
+      btn.innerHTML = `<span class="enh enh-flat">${r.flatName}</span><span class="enh-sep"> / </span><span class="enh enh-sharp">${SHARP_DISPLAY[r.name] || r.name}</span>`;
+    } else {
+      btn.textContent = r.name;
+    }
     btn.dataset.seqRootIdx = i;
     btn.id = 'seq-root-' + i;
     rootRow.appendChild(btn);
@@ -427,41 +441,37 @@ export function navigateToChord(rootIdx, typeIdx, { switchToTab = true } = {}) {
 }
 
 // ===== MAIN RENDER =====
-// Reset any previously toggled black-key pill back to its flat default
+// Remove sharp/flat emphasis from all black-key pills
 function resetBlackKeyPills() {
   ROOTS.forEach((r, idx) => {
     if (r.black) {
       const p = document.getElementById('root-' + idx);
-      if (p) p.textContent = r.flatName;
+      if (p) {
+        p.classList.remove('prefer-flat', 'prefer-sharp');
+      }
     }
   });
 }
 
 export function selectRoot(i) {
   const root = ROOTS[i];
-  const isToggle = i === selectedRoot && root.black;
 
-  if (isToggle) {
+  if (i === selectedRoot && root.black) {
     // Toggle between flat and sharp on re-click
     selectedAccidental = !selectedAccidental;
   } else {
-    // Switching to a new root — reset any previously flipped pill labels
+    // Switching to a new root — reset any previously emphasized pills
     resetBlackKeyPills();
     selectedRoot = i;
     selectedAccidental = root.black ? true : null; // default: flat for black keys
     selectedInversion = 0;
   }
 
-  // Flip animation only on toggle (not first selection)
+  // Update emphasis class on the active black-key pill
   const pill = document.getElementById('root-' + i);
-  if (pill && root.black && isToggle) {
-    pill.classList.add('flip');
-    setTimeout(() => {
-      pill.textContent = selectedAccidental
-        ? root.flatName
-        : (SHARP_DISPLAY[root.name] || root.name);
-      pill.classList.remove('flip');
-    }, 150);
+  if (pill && root.black) {
+    pill.classList.toggle('prefer-flat', selectedAccidental === true);
+    pill.classList.toggle('prefer-sharp', selectedAccidental === false);
   }
 
   document.querySelectorAll('#root-picker .pill').forEach((p, idx) => p.classList.toggle('active', idx === i));
@@ -617,10 +627,11 @@ export function renderResult() {
   // Related chords
   html += renderRelatedChords(selectedRoot, selectedType);
 
-  // Did the actual chord change (root or type), or just inversion/instrument?
-  const chordChanged = (selectedRoot !== prevRoot || selectedType !== prevType);
+  // Did the actual chord change (root, type, or accidental), or just inversion/instrument?
+  const chordChanged = (selectedRoot !== prevRoot || selectedType !== prevType || selectedAccidental !== prevAccidental);
   prevRoot = selectedRoot;
   prevType = selectedType;
+  prevAccidental = selectedAccidental;
 
   const doSwap = () => {
     area.innerHTML = html;
@@ -687,13 +698,12 @@ export function restoreFromURL() {
     selectedRoot = rootIdx;
     selectedType = typeIdx;
     selectedAccidental = accSuffix === 'f' ? true : accSuffix === 's' ? false : null;
-    // Update black-key pill label if preference is restored
+    // Update black-key pill emphasis if preference is restored
     if (selectedAccidental !== null) {
       const pill = document.getElementById('root-' + rootIdx);
       if (pill && ROOTS[rootIdx].black) {
-        pill.textContent = selectedAccidental
-          ? ROOTS[rootIdx].flatName
-          : (SHARP_DISPLAY[ROOTS[rootIdx].name] || ROOTS[rootIdx].name);
+        pill.classList.toggle('prefer-flat', selectedAccidental === true);
+        pill.classList.toggle('prefer-sharp', selectedAccidental === false);
       }
     }
     document.querySelectorAll('#root-picker .pill').forEach((p, i) => p.classList.toggle('active', i === rootIdx));

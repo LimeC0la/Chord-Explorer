@@ -176,18 +176,20 @@
     flex-wrap: wrap;
     gap: 0.35rem;
     margin-bottom: 1rem;
-    perspective: 400px;
   }
 
-  @keyframes pill-flip {
-    0%   { transform: rotateX(0deg);  opacity: 1; }
-    50%  { transform: rotateX(90deg); opacity: 0; }
-    100% { transform: rotateX(0deg);  opacity: 1; }
-  }
+  /* Enharmonic name spans inside black-key pills */
+  .enh { transition: opacity 0.2s ease; }
+  .enh-sep { opacity: 0.4; font-size: 0.7em; }
 
-  .pill.flip {
-    animation: pill-flip 0.3s ease;
-  }
+  /* When active and a preference is set, emphasize the chosen name */
+  .pill.black-note.active.prefer-flat .enh-flat  { opacity: 1; }
+  .pill.black-note.active.prefer-flat .enh-sharp { opacity: 0.35; }
+  .pill.black-note.active.prefer-flat .enh-sep   { opacity: 0.25; }
+
+  .pill.black-note.active.prefer-sharp .enh-sharp { opacity: 1; }
+  .pill.black-note.active.prefer-sharp .enh-flat  { opacity: 0.35; }
+  .pill.black-note.active.prefer-sharp .enh-sep   { opacity: 0.25; }
 
   .pill {
     padding: 0.38rem 0.72rem;
