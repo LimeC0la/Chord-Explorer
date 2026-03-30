@@ -5,7 +5,7 @@ import { chordSymbol, chordNotes } from './music-theory.js';
 import { playNotes } from './audio-engine.js';
 
 // ---- State ----
-let sequence = [];           // Array of { rootIdx, typeIdx, id }
+let sequence = [];           // Array of { rootIdx, typeIdx, id, preferFlat }
 let selectedSeqIdx = null;   // Which chip is selected for replacement (null = none)
 let undoStack = [];
 let redoStack = [];
@@ -22,9 +22,9 @@ function pushUndo() {
 
 // ---- Public API ----
 
-export function addChord(rootIdx, typeIdx) {
+export function addChord(rootIdx, typeIdx, preferFlat = null) {
   pushUndo();
-  sequence.push({ rootIdx, typeIdx, id: nextId++ });
+  sequence.push({ rootIdx, typeIdx, id: nextId++, preferFlat });
   selectedSeqIdx = null;
   renderSequence();
 }
@@ -40,10 +40,10 @@ export function removeChord(idx) {
   renderSequence();
 }
 
-export function replaceChord(idx, rootIdx, typeIdx) {
+export function replaceChord(idx, rootIdx, typeIdx, preferFlat = null) {
   if (idx < 0 || idx >= sequence.length) return;
   pushUndo();
-  sequence[idx] = { rootIdx, typeIdx, id: sequence[idx].id };
+  sequence[idx] = { rootIdx, typeIdx, id: sequence[idx].id, preferFlat };
   selectedSeqIdx = null;
   renderSequence();
 }
@@ -315,7 +315,7 @@ export function renderSequence() {
 
   // Replace mode banner
   if (selectedSeqIdx !== null && selectedSeqIdx < sequence.length) {
-    const name = chordSymbol(sequence[selectedSeqIdx].rootIdx, sequence[selectedSeqIdx].typeIdx);
+    const name = chordSymbol(sequence[selectedSeqIdx].rootIdx, sequence[selectedSeqIdx].typeIdx, sequence[selectedSeqIdx].preferFlat);
     html += `<div class="seq-replace-banner">Replacing <strong>${name}</strong> — pick a new chord above, or <button class="seq-cancel-btn" data-seq-action="cancel-replace">cancel</button></div>`;
   }
 
@@ -325,7 +325,7 @@ export function renderSequence() {
     html += '<div class="seq-empty">Add chords to build a sequence</div>';
   } else {
     sequence.forEach((chord, i) => {
-      const name = chordSymbol(chord.rootIdx, chord.typeIdx);
+      const name = chordSymbol(chord.rootIdx, chord.typeIdx, chord.preferFlat);
       const sel = i === selectedSeqIdx ? ' selected' : '';
       html += `<div class="seq-chip${sel}" draggable="true" data-seq-idx="${i}" data-seq-id="${chord.id}">`;
       html += `<span class="seq-chip-num">${i + 1}</span>`;

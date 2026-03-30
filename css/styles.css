@@ -176,6 +176,17 @@
     flex-wrap: wrap;
     gap: 0.35rem;
     margin-bottom: 1rem;
+    perspective: 400px;
+  }
+
+  @keyframes pill-flip {
+    0%   { transform: rotateX(0deg);  opacity: 1; }
+    50%  { transform: rotateX(90deg); opacity: 0; }
+    100% { transform: rotateX(0deg);  opacity: 1; }
+  }
+
+  .pill.flip {
+    animation: pill-flip 0.3s ease;
   }
 
   .pill {

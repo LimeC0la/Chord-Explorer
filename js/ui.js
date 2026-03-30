@@ -16,6 +16,7 @@ import { switchTab } from './tabs.js';
 // ---- State (owned by this module, exposed via getters/setters) ----
 let selectedRoot = null;
 let selectedType = null;
+let selectedAccidental = null; // true=preferFlat, false=preferSharp, null=white key (auto)
 let selectedInversion = 0;
 let instrumentMode = 'piano';
 let progMode = 'major';
@@ -27,10 +28,11 @@ let skipFade = false;   // set true to bypass fade on next render
 // ---- Public state accessors ----
 export function getSelectedRoot() { return selectedRoot; }
 export function getSelectedType() { return selectedType; }
+export function getSelectedAccidental() { return selectedAccidental; }
 export function getInstrumentMode() { return instrumentMode; }
 
 // ===== PIANO RENDERER =====
-function renderPiano(container, voicedSemis, rootSemi) {
+function renderPiano(container, voicedSemis, rootSemi, preferFlat) {
   container.innerHTML = '';
 
   const whiteMap = [
@@ -104,7 +106,9 @@ function renderPiano(container, voicedSemis, rootSemi) {
       if (isActive) {
         const lbl = document.createElement('span');
         lbl.className = 'key-note-label';
-        lbl.textContent = bp.note;
+        // Use context-aware note name so piano labels match the user's sharp/flat choice
+        const rootIdx = ROOTS.findIndex(r => r.semi === rootMod);
+        lbl.textContent = rootIdx >= 0 ? noteName(bp.semi, rootIdx, preferFlat) : bp.note;
         el.appendChild(lbl);
       }
 
@@ -145,7 +149,7 @@ function renderRelatedChords(rootIdx, typeIdx) {
 
   let html = '<div class="related-section">';
   html += '<div class="related-title">Related Chords</div>';
-  html += `<div class="related-sub">Chords sharing 2 or more notes with ${chordSymbol(rootIdx, typeIdx)}</div>`;
+  html += `<div class="related-sub">Chords sharing 2 or more notes with ${chordSymbol(rootIdx, typeIdx, selectedAccidental)}</div>`;
   html += '<div class="related-grid">';
 
   related.forEach(r => {
@@ -178,7 +182,7 @@ export function renderProgressions() {
   const scale = progMode === 'major' ? MAJOR_SCALE : MINOR_SCALE;
   const diatonic = progMode === 'major' ? MAJOR_DIATONIC : MINOR_DIATONIC;
   const rootSemi = ROOTS[selectedRoot].semi;
-  const rootN = noteName(rootSemi, selectedRoot);
+  const rootN = noteName(rootSemi, selectedRoot, selectedAccidental);
   const modeName = progMode === 'major' ? 'Major' : 'Minor';
 
   let html = '<div class="progressions-section">';
@@ -273,7 +277,9 @@ export function buildPickers() {
   ROOTS.forEach((r, i) => {
     const btn = document.createElement('button');
     btn.className = 'pill' + (r.black ? ' black-note' : '');
-    btn.textContent = r.black ? (r.flatName + ' / ' + (SHARP_DISPLAY[r.name] || r.name)) : r.name;
+    // Black keys: show flat name by default; user can flip it when active
+    btn.textContent = r.black ? r.flatName : r.name;
+    if (r.black) btn.dataset.hasEnharmonic = '1';
     btn.dataset.rootIdx = i;
     btn.id = 'root-' + i;
     rootRow.appendChild(btn);
@@ -298,8 +304,10 @@ export function buildSequencePicker() {
   ROOTS.forEach((r, i) => {
     const btn = document.createElement('button');
     btn.className = 'pill' + (r.black ? ' black-note' : '');
-    btn.textContent = r.black ? (r.flatName + ' / ' + (SHARP_DISPLAY[r.name] || r.name)) : r.name;
+    btn.textContent = r.black ? r.flatName : r.name;
+    if (r.black) btn.dataset.hasEnharmonic = '1';
     btn.dataset.seqRootIdx = i;
+    btn.id = 'seq-root-' + i;
     rootRow.appendChild(btn);
   });
 
@@ -406,7 +414,9 @@ export function onSoundChange() {
 export function navigateToChord(rootIdx, typeIdx, { switchToTab = true } = {}) {
   selectedRoot = rootIdx;
   selectedType = typeIdx;
+  selectedAccidental = null; // let auto-detect handle related/progression chords
   selectedInversion = 0;
+  resetBlackKeyPills();
   document.querySelectorAll('#root-picker .pill').forEach((p, i) => p.classList.toggle('active', i === rootIdx));
   document.querySelectorAll('#type-picker .pill').forEach((p, i) => p.classList.toggle('active', i === typeIdx));
   if (switchToTab) {
@@ -417,9 +427,43 @@ export function navigateToChord(rootIdx, typeIdx, { switchToTab = true } = {}) {
 }
 
 // ===== MAIN RENDER =====
+// Reset any previously toggled black-key pill back to its flat default
+function resetBlackKeyPills() {
+  ROOTS.forEach((r, idx) => {
+    if (r.black) {
+      const p = document.getElementById('root-' + idx);
+      if (p) p.textContent = r.flatName;
+    }
+  });
+}
+
 export function selectRoot(i) {
-  selectedRoot = i;
-  selectedInversion = 0;
+  const root = ROOTS[i];
+  const isToggle = i === selectedRoot && root.black;
+
+  if (isToggle) {
+    // Toggle between flat and sharp on re-click
+    selectedAccidental = !selectedAccidental;
+  } else {
+    // Switching to a new root — reset any previously flipped pill labels
+    resetBlackKeyPills();
+    selectedRoot = i;
+    selectedAccidental = root.black ? true : null; // default: flat for black keys
+    selectedInversion = 0;
+  }
+
+  // Flip animation only on toggle (not first selection)
+  const pill = document.getElementById('root-' + i);
+  if (pill && root.black && isToggle) {
+    pill.classList.add('flip');
+    setTimeout(() => {
+      pill.textContent = selectedAccidental
+        ? root.flatName
+        : (SHARP_DISPLAY[root.name] || root.name);
+      pill.classList.remove('flip');
+    }, 150);
+  }
+
   document.querySelectorAll('#root-picker .pill').forEach((p, idx) => p.classList.toggle('active', idx === i));
   renderResult();
 }
@@ -439,8 +483,10 @@ export function selectInv(i) {
 export function transpose(semitones) {
   if (selectedRoot === null) return;
   selectedRoot = ((selectedRoot + semitones) % 12 + 12) % 12;
+  selectedAccidental = null; // reset to auto-detect for the new root
   selectedInversion = 0;
   skipFade = true;
+  resetBlackKeyPills();
   document.querySelectorAll('#root-picker .pill').forEach((p, idx) => p.classList.toggle('active', idx === selectedRoot));
   renderResult();
 }
@@ -458,8 +504,8 @@ export function renderResult() {
   updateURL();
 
   const type = CHORD_TYPES[selectedType];
-  const inv = getInversion(selectedRoot, selectedType, selectedInversion);
-  const symbol = chordSymbol(selectedRoot, selectedType);
+  const inv = getInversion(selectedRoot, selectedType, selectedInversion, selectedAccidental);
+  const symbol = chordSymbol(selectedRoot, selectedType, selectedAccidental);
   const msgs = validate(selectedRoot, selectedType);
 
   // Sample loading indicator
@@ -541,7 +587,7 @@ export function renderResult() {
   html += '<div class="inv-cards">';
 
   for (let v = 0; v < numNotes; v++) {
-    const invData = getInversion(selectedRoot, selectedType, v);
+    const invData = getInversion(selectedRoot, selectedType, v, selectedAccidental);
     const isActive = v === selectedInversion;
 
     let diffHtml = '';
@@ -582,10 +628,10 @@ export function renderResult() {
     // Render instrument display
     if (instrumentMode === 'piano') {
       const pianoEl = document.getElementById('main-piano');
-      if (pianoEl) renderPiano(pianoEl, inv.voicedSemis, ROOTS[selectedRoot].semi);
+      if (pianoEl) renderPiano(pianoEl, inv.voicedSemis, ROOTS[selectedRoot].semi, selectedAccidental);
     } else {
       const diagEl = document.getElementById('chord-diagram');
-      if (diagEl) renderChordDiagram(diagEl, inv.semis, instrumentMode, selectedRoot);
+      if (diagEl) renderChordDiagram(diagEl, inv.semis, instrumentMode, selectedRoot, selectedAccidental);
     }
 
     // Only re-render these when the chord itself changed (not on inversion/instrument switch)
@@ -618,7 +664,10 @@ export function renderResult() {
 // ===== URL STATE =====
 function updateURL() {
   if (selectedRoot === null || selectedType === null) return;
-  history.replaceState(null, '', '#' + selectedRoot + '-' + CHORD_TYPES[selectedType].id);
+  let hash = selectedRoot + '-' + CHORD_TYPES[selectedType].id;
+  if (selectedAccidental === true) hash += '-f';
+  else if (selectedAccidental === false) hash += '-s';
+  history.replaceState(null, '', '#' + hash);
 }
 
 export function restoreFromURL() {
@@ -627,11 +676,26 @@ export function restoreFromURL() {
   const dashIdx = hash.indexOf('-');
   if (dashIdx < 0) return;
   const rootIdx = parseInt(hash.slice(0, dashIdx));
-  const typeId = hash.slice(dashIdx + 1);
+  const rest = hash.slice(dashIdx + 1);
+  // rest may be "min" or "min-f" or "min-s"
+  const suffixMatch = rest.match(/^(.+?)(?:-(f|s))?$/);
+  if (!suffixMatch) return;
+  const typeId = suffixMatch[1];
+  const accSuffix = suffixMatch[2]; // 'f', 's', or undefined
   const typeIdx = CHORD_TYPES.findIndex(t => t.id === typeId);
   if (!isNaN(rootIdx) && rootIdx >= 0 && rootIdx < 12 && typeIdx >= 0) {
     selectedRoot = rootIdx;
     selectedType = typeIdx;
+    selectedAccidental = accSuffix === 'f' ? true : accSuffix === 's' ? false : null;
+    // Update black-key pill label if preference is restored
+    if (selectedAccidental !== null) {
+      const pill = document.getElementById('root-' + rootIdx);
+      if (pill && ROOTS[rootIdx].black) {
+        pill.textContent = selectedAccidental
+          ? ROOTS[rootIdx].flatName
+          : (SHARP_DISPLAY[ROOTS[rootIdx].name] || ROOTS[rootIdx].name);
+      }
+    }
     document.querySelectorAll('#root-picker .pill').forEach((p, i) => p.classList.toggle('active', i === rootIdx));
     document.querySelectorAll('#type-picker .pill').forEach((p, i) => p.classList.toggle('active', i === typeIdx));
     renderResult();
@@ -651,6 +715,8 @@ export function toggleDark() {
 // ===== COF CLICK =====
 export function cofClick(rootIdx) {
   selectedRoot = rootIdx;
+  selectedAccidental = null; // auto-detect spelling from key context
+  resetBlackKeyPills();
   document.querySelectorAll('#root-picker .pill').forEach((p, i) => p.classList.toggle('active', i === rootIdx));
   if (selectedType === null) {
     selectedType = 0;

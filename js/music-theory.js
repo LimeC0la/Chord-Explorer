@@ -83,18 +83,20 @@ export const MINOR_DIATONIC = [
 export const CIRCLE_OF_FIFTHS = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
 
 // ===== HELPERS =====
-export function useFlats(rootIdx) {
-  // Use flats for flat-key roots
+export function useFlats(rootIdx, preferFlat) {
+  // If an explicit preference is provided, use it
+  if (preferFlat != null) return preferFlat;
+  // Otherwise fall back to auto-detection
   const r = ROOTS[rootIdx].name;
   return FLAT_ROOTS.has(r) || ROOTS[rootIdx].black;
 }
 
-export function noteName(semiFromC, rootIdx) {
+export function noteName(semiFromC, rootIdx, preferFlat) {
   const idx = ((semiFromC % 12) + 12) % 12;
   const raw = NOTE_NAMES[idx];
   if (raw.length === 1) return raw;
   // sharp or flat based on root context
-  if (useFlats(rootIdx)) {
+  if (useFlats(rootIdx, preferFlat)) {
     return FLAT_MAP[raw] || raw;
   }
   return SHARP_DISPLAY[raw] || raw;
@@ -106,13 +108,13 @@ export function chordNotes(rootIdx, typeIdx) {
   return type.intervals.map(i => (root + i) % 12);
 }
 
-export function chordNoteNames(rootIdx, typeIdx) {
+export function chordNoteNames(rootIdx, typeIdx, preferFlat) {
   const semis = chordNotes(rootIdx, typeIdx);
-  return semis.map(s => noteName(s, rootIdx));
+  return semis.map(s => noteName(s, rootIdx, preferFlat));
 }
 
-export function getInversion(rootIdx, typeIdx, inv) {
-  const names = chordNoteNames(rootIdx, typeIdx);
+export function getInversion(rootIdx, typeIdx, inv, preferFlat) {
+  const names = chordNoteNames(rootIdx, typeIdx, preferFlat);
   const semis = chordNotes(rootIdx, typeIdx);
   // Rotate
   const rNames = [...names.slice(inv), ...names.slice(0, inv)];
@@ -128,8 +130,8 @@ export function getInversion(rootIdx, typeIdx, inv) {
   return { names: rNames, semis: rSemis, voicedSemis: voiced, bassNote: rNames[0] };
 }
 
-export function chordSymbol(rootIdx, typeIdx) {
-  const rootDisplay = ROOTS[rootIdx].black && useFlats(rootIdx)
+export function chordSymbol(rootIdx, typeIdx, preferFlat) {
+  const rootDisplay = ROOTS[rootIdx].black && useFlats(rootIdx, preferFlat)
     ? ROOTS[rootIdx].flatName
     : (SHARP_DISPLAY[ROOTS[rootIdx].name] || ROOTS[rootIdx].name);
   return rootDisplay + CHORD_SYMBOLS[CHORD_TYPES[typeIdx].id];

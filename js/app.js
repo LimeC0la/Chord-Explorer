@@ -7,8 +7,10 @@ import {
   renderCircleOfFifths, restoreFromURL, toggleDark, toggleSoundPanel,
   setInstrument, applyPreset, onSoundChange, navigateToChord,
   selectRoot, selectType, selectInv, transpose, cofClick,
-  setProgMode, showLoadingIndicator, getSelectedRoot, getSelectedType
+  setProgMode, showLoadingIndicator, getSelectedRoot, getSelectedType, getSelectedAccidental
 } from './ui.js';
+
+import { ROOTS, SHARP_DISPLAY } from './music-theory.js';
 
 import {
   ensureContext, finishAudioSetup, onUserGesture, playNotes,
@@ -78,6 +80,7 @@ function lazyInitAudio() {
 // ---- Sequence picker state (independent from explorer pickers) ----
 let seqPickerRoot = null;
 let seqPickerType = null;
+let seqPickerPreferFlat = null; // accidental preference for seq picker black-key roots
 
 function updateSeqAddBtn() {
   const btn = document.getElementById('seq-add-selected');
@@ -107,13 +110,32 @@ document.addEventListener('click', function(e) {
   // ---- Sequence picker pills ----
   const seqRootPill = e.target.closest('#seq-root-picker .pill');
   if (seqRootPill && seqRootPill.dataset.seqRootIdx !== undefined) {
-    seqPickerRoot = parseInt(seqRootPill.dataset.seqRootIdx);
+    const newSeqRoot = parseInt(seqRootPill.dataset.seqRootIdx);
+    const root = ROOTS[newSeqRoot];
+    const isBlack = root.black;
+    if (newSeqRoot === seqPickerRoot && isBlack) {
+      // Toggle accidental on re-click
+      seqPickerPreferFlat = !seqPickerPreferFlat;
+    } else {
+      seqPickerRoot = newSeqRoot;
+      seqPickerPreferFlat = isBlack ? true : null;
+    }
+    // Update pill label with flip animation (black keys only)
+    if (isBlack) {
+      seqRootPill.classList.add('flip');
+      setTimeout(() => {
+        seqRootPill.textContent = seqPickerPreferFlat
+          ? root.flatName
+          : (SHARP_DISPLAY[root.name] || root.name);
+        seqRootPill.classList.remove('flip');
+      }, 150);
+    }
     document.querySelectorAll('#seq-root-picker .pill').forEach((p, i) =>
       p.classList.toggle('active', i === seqPickerRoot));
     updateSeqAddBtn();
     // If a sequence chip is selected for replacement, replace it
     if (isSequenceSelecting() && seqPickerRoot !== null && seqPickerType !== null) {
-      replaceChord(getSelectedSeqIdx(), seqPickerRoot, seqPickerType);
+      replaceChord(getSelectedSeqIdx(), seqPickerRoot, seqPickerType, seqPickerPreferFlat);
     }
     return;
   }
@@ -126,7 +148,7 @@ document.addEventListener('click', function(e) {
     updateSeqAddBtn();
     // If a sequence chip is selected for replacement, replace it
     if (isSequenceSelecting() && seqPickerRoot !== null && seqPickerType !== null) {
-      replaceChord(getSelectedSeqIdx(), seqPickerRoot, seqPickerType);
+      replaceChord(getSelectedSeqIdx(), seqPickerRoot, seqPickerType, seqPickerPreferFlat);
     }
     return;
   }
@@ -139,11 +161,11 @@ document.addEventListener('click', function(e) {
       const root = getSelectedRoot();
       const type = getSelectedType();
       if (root !== null && type !== null) {
-        addChord(root, type);
+        addChord(root, type, getSelectedAccidental());
       }
     } else if (action === 'add-from-picker') {
       if (seqPickerRoot !== null && seqPickerType !== null) {
-        addChord(seqPickerRoot, seqPickerType);
+        addChord(seqPickerRoot, seqPickerType, seqPickerPreferFlat);
       }
     } else if (action === 'undo') { undo(); }
     else if (action === 'redo') { redo(); }

@@ -114,7 +114,7 @@ export function findVoicing(chordSemis, instrument) {
 }
 
 // Render SVG chord diagram
-export function renderChordDiagram(container, chordSemis, instrument, rootIdx) {
+export function renderChordDiagram(container, chordSemis, instrument, rootIdx, preferFlat) {
   const voicing = findVoicing(chordSemis, instrument);
   const tuning = TUNINGS[instrument];
   const labels = STRING_LABELS[instrument];
@@ -198,7 +198,7 @@ export function renderChordDiagram(container, chordSemis, instrument, rootIdx) {
       const r = instrument === 'ukulele' ? 9 : 8;
       svg += `<circle cx="${x}" cy="${y}" r="${r}" fill="${isRoot ? '#6a50a0' : '#8a8580'}"/>`;
       // Note name inside dot
-      const nName = noteName(v.semi, rootIdx);
+      const nName = noteName(v.semi, rootIdx, preferFlat);
       svg += `<text x="${x}" y="${y + 3.5}" text-anchor="middle" font-size="7.5" font-weight="700" fill="#fff">${nName}</text>`;
     }
   }
