@@ -428,9 +428,9 @@ export function onSoundChange() {
 export function navigateToChord(rootIdx, typeIdx, { switchToTab = true } = {}) {
   selectedRoot = rootIdx;
   selectedType = typeIdx;
-  selectedAccidental = null; // let auto-detect handle related/progression chords
   selectedInversion = 0;
   resetBlackKeyPills();
+  applyAccidentalForRoot(rootIdx);
   document.querySelectorAll('#root-picker .pill').forEach((p, i) => p.classList.toggle('active', i === rootIdx));
   document.querySelectorAll('#type-picker .pill').forEach((p, i) => p.classList.toggle('active', i === typeIdx));
   if (switchToTab) {
@@ -451,6 +451,16 @@ function resetBlackKeyPills() {
       }
     }
   });
+}
+
+// Set selectedAccidental for a new root and apply the pill emphasis class
+function applyAccidentalForRoot(rootIdx) {
+  const root = ROOTS[rootIdx];
+  selectedAccidental = root.black ? true : null;
+  if (root.black) {
+    const pill = document.getElementById('root-' + rootIdx);
+    if (pill) pill.classList.add('prefer-flat');
+  }
 }
 
 export function selectRoot(i) {
@@ -493,10 +503,10 @@ export function selectInv(i) {
 export function transpose(semitones) {
   if (selectedRoot === null) return;
   selectedRoot = ((selectedRoot + semitones) % 12 + 12) % 12;
-  selectedAccidental = null; // reset to auto-detect for the new root
   selectedInversion = 0;
   skipFade = true;
   resetBlackKeyPills();
+  applyAccidentalForRoot(selectedRoot);
   document.querySelectorAll('#root-picker .pill').forEach((p, idx) => p.classList.toggle('active', idx === selectedRoot));
   renderResult();
 }
@@ -697,8 +707,10 @@ export function restoreFromURL() {
   if (!isNaN(rootIdx) && rootIdx >= 0 && rootIdx < 12 && typeIdx >= 0) {
     selectedRoot = rootIdx;
     selectedType = typeIdx;
-    selectedAccidental = accSuffix === 'f' ? true : accSuffix === 's' ? false : null;
-    // Update black-key pill emphasis if preference is restored
+    if (accSuffix === 'f') selectedAccidental = true;
+    else if (accSuffix === 's') selectedAccidental = false;
+    else selectedAccidental = ROOTS[rootIdx].black ? true : null; // default flat for black keys
+    // Apply emphasis class to the pill
     if (selectedAccidental !== null) {
       const pill = document.getElementById('root-' + rootIdx);
       if (pill && ROOTS[rootIdx].black) {
@@ -725,8 +737,8 @@ export function toggleDark() {
 // ===== COF CLICK =====
 export function cofClick(rootIdx) {
   selectedRoot = rootIdx;
-  selectedAccidental = null; // auto-detect spelling from key context
   resetBlackKeyPills();
+  applyAccidentalForRoot(rootIdx);
   document.querySelectorAll('#root-picker .pill').forEach((p, i) => p.classList.toggle('active', i === rootIdx));
   if (selectedType === null) {
     selectedType = 0;
