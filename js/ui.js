@@ -129,7 +129,7 @@ function getRelatedChords(rootIdx, typeIdx) {
       const semis = chordNotes(r, t);
       const shared = semis.filter(s => currentSemis.has(s)).length;
       if (shared >= 2) {
-        results.push({ rootIdx: r, typeIdx: t, shared, symbol: chordSymbol(r, t) });
+        results.push({ rootIdx: r, typeIdx: t, shared, symbol: chordSymbol(r, t, selectedAccidental) });
       }
     }
   }
@@ -202,7 +202,7 @@ export function renderProgressions() {
     if (degRootIdx < 0 || degTypeIdx < 0) return;
 
     const isActive = (degRootIdx === selectedRoot && degTypeIdx === selectedType);
-    const sym = chordSymbol(degRootIdx, degTypeIdx);
+    const sym = chordSymbol(degRootIdx, degTypeIdx, selectedAccidental);
 
     html += `<div class="prog-pill ${isActive ? 'active' : ''}" data-nav-root="${degRootIdx}" data-nav-type="${degTypeIdx}">`;
     html += `<span class="prog-roman">${deg.roman}</span>`;
@@ -258,9 +258,9 @@ export function renderCircleOfFifths() {
       strokeCol = isDark ? '#3a3540' : '#e0dbd4';
     }
 
-    // For the selected root, respect the user's sharp/flat preference
+    // When the user has a key-family preference, all black keys follow it
     let displayLabel;
-    if (rootIdx === selectedRoot && selectedAccidental !== null && root.black) {
+    if (selectedAccidental !== null && root.black) {
       displayLabel = selectedAccidental
         ? root.flatName
         : (SHARP_DISPLAY[root.name] || root.name);
