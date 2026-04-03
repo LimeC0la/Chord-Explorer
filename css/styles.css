@@ -1361,6 +1361,40 @@
     user-select: none;
   }
 
+  /* ---- Circle/Spiral Mode Toggle ---- */
+  .cof-mode-toggle {
+    display: flex;
+    justify-content: center;
+    gap: 0.2rem;
+    margin-bottom: 0.3rem;
+  }
+  .cof-mode-btn {
+    font-family: 'Nunito', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.22rem 0.6rem;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: #9a958e;
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+  .cof-mode-btn:hover { color: #6a50a0; }
+  .cof-mode-btn.active {
+    background: #fff;
+    color: #3a3530;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .dark .cof-mode-btn { color: #6a6080; }
+  .dark .cof-mode-btn:hover { color: #b090e0; }
+  .dark .cof-mode-btn.active { background: #3e3a50; color: #e0d8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+
+  /* ---- Spiral of Fifths ---- */
+  .sof-wrap { margin: 0.4rem 0 0.2rem; }
+  .sof-theoretical { opacity: 0.65; }
+  .sof-theoretical:hover { opacity: 0.85; }
+
   /* ---- Smooth Transitions ---- */
   #result-area {
     transition: opacity 0.14s ease, transform 0.14s ease;

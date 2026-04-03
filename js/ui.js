@@ -4,7 +4,8 @@
 import {
   NOTE_NAMES, ROOTS, CHORD_TYPES, CHORD_SYMBOLS, INVERSION_NAMES,
   SHARP_DISPLAY, MAJOR_SCALE, MAJOR_DIATONIC, MINOR_SCALE, MINOR_DIATONIC,
-  CIRCLE_OF_FIFTHS, useFlats, noteName, chordNotes, chordNoteNames,
+  CIRCLE_OF_FIFTHS, SEMI_TO_SPOKE, SPIRAL_KEYS,
+  useFlats, noteName, chordNotes, chordNoteNames,
   getInversion, chordSymbol, validate
 } from './music-theory.js';
 
@@ -20,6 +21,7 @@ let selectedAccidental = null; // true=preferFlat, false=preferSharp, null=white
 let selectedInversion = 0;
 let instrumentMode = 'piano';
 let progMode = 'major';
+let fifthsMode = 'circle'; // 'circle' | 'spiral'
 let activePreset = 'default';
 let prevRoot = null;    // track for fade-on-chord-change
 let prevType = null;
@@ -165,6 +167,24 @@ function renderRelatedChords(rootIdx, typeIdx) {
   return html;
 }
 
+// ===== FIFTHS MODE =====
+export function setFifthsMode(mode) {
+  fifthsMode = mode;
+  renderFifths();
+}
+
+export function renderFifths() {
+  if (fifthsMode === 'spiral') renderSpiralOfFifths();
+  else renderCircleOfFifths();
+}
+
+function fifthsToggleHTML() {
+  return `<div class="cof-mode-toggle">
+    <button class="cof-mode-btn ${fifthsMode==='circle'?'active':''}" data-cof-mode="circle">Circle</button>
+    <button class="cof-mode-btn ${fifthsMode==='spiral'?'active':''}" data-cof-mode="spiral">Spiral</button>
+  </div>`;
+}
+
 // ===== PROGRESSIONS =====
 export function setProgMode(mode) {
   progMode = mode;
@@ -215,6 +235,42 @@ export function renderProgressions() {
 }
 
 // ===== CIRCLE OF FIFTHS =====
+
+// Shared color logic for circle/spiral nodes
+function nodeColors(rootSemi, isDark) {
+  if (selectedRoot === null) {
+    return {
+      fill: isDark ? '#1e1c28' : '#faf8f5',
+      textFill: isDark ? '#a098b8' : '#6a6560',
+      strokeCol: isDark ? '#3a3540' : '#e0dbd4'
+    };
+  }
+  const selSemi = ROOTS[selectedRoot].semi;
+  const diff = ((rootSemi - selSemi) % 12 + 12) % 12;
+
+  if (rootSemi === selSemi) {
+    return { fill: '#6a50a0', textFill: '#fff', strokeCol: '#6a50a0' };
+  } else if (diff === 7 || diff === 5) {
+    return {
+      fill: isDark ? '#2a2040' : '#ece4f8',
+      textFill: isDark ? '#b090e0' : '#6a50a0',
+      strokeCol: isDark ? '#5a40a0' : '#c5b8d8'
+    };
+  } else if (diff === 9 || diff === 3) {
+    return {
+      fill: isDark ? '#1e2030' : '#e8edf8',
+      textFill: isDark ? '#8090c0' : '#5060a0',
+      strokeCol: isDark ? '#405080' : '#b0bcd8'
+    };
+  } else {
+    return {
+      fill: isDark ? '#1e1c28' : '#faf8f5',
+      textFill: isDark ? '#6a6080' : '#8a8580',
+      strokeCol: isDark ? '#3a3540' : '#e0dbd4'
+    };
+  }
+}
+
 export function renderCircleOfFifths() {
   const container = document.getElementById('circle-of-fifths');
   if (!container) return;
@@ -230,33 +286,7 @@ export function renderCircleOfFifths() {
     const x = cx + r * Math.cos(angle);
     const y = cy + r * Math.sin(angle);
     const root = ROOTS[rootIdx];
-
-    let fill, textFill, strokeCol;
-    if (selectedRoot !== null) {
-      const selSemi = ROOTS[selectedRoot].semi;
-      const thisSemi = root.semi;
-      const diff = ((thisSemi - selSemi) % 12 + 12) % 12;
-
-      if (rootIdx === selectedRoot) {
-        fill = '#6a50a0'; textFill = '#fff'; strokeCol = '#6a50a0';
-      } else if (diff === 7 || diff === 5) {
-        fill = isDark ? '#2a2040' : '#ece4f8';
-        textFill = isDark ? '#b090e0' : '#6a50a0';
-        strokeCol = isDark ? '#5a40a0' : '#c5b8d8';
-      } else if (diff === 9 || diff === 3) {
-        fill = isDark ? '#1e2030' : '#e8edf8';
-        textFill = isDark ? '#8090c0' : '#5060a0';
-        strokeCol = isDark ? '#405080' : '#b0bcd8';
-      } else {
-        fill = isDark ? '#1e1c28' : '#faf8f5';
-        textFill = isDark ? '#6a6080' : '#8a8580';
-        strokeCol = isDark ? '#3a3540' : '#e0dbd4';
-      }
-    } else {
-      fill = isDark ? '#1e1c28' : '#faf8f5';
-      textFill = isDark ? '#a098b8' : '#6a6560';
-      strokeCol = isDark ? '#3a3540' : '#e0dbd4';
-    }
+    const { fill, textFill, strokeCol } = nodeColors(root.semi, isDark);
 
     // When the user has a key-family preference, all black keys follow it
     let displayLabel;
@@ -275,7 +305,105 @@ export function renderCircleOfFifths() {
   });
 
   svg += '</svg>';
-  container.innerHTML = `<div class="cof-wrap">${svg}</div>`;
+  container.innerHTML = `${fifthsToggleHTML()}<div class="cof-wrap">${svg}</div>`;
+}
+
+// ===== SPIRAL OF FIFTHS =====
+function renderSpiralOfFifths() {
+  const container = document.getElementById('circle-of-fifths');
+  if (!container) return;
+
+  const cx = 200, cy = 200;
+  const rBase = 55, growth = 5; // Archimedean spiral: r = rBase + growth * θ
+  const isDark = document.body.classList.contains('dark');
+
+  // Helper: get (x, y, r) for a point on the spiral at angle θ
+  function spiralPos(theta) {
+    const r = rBase + growth * theta;
+    const a = theta - Math.PI / 2; // rotate so θ=0 is at top
+    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a), r };
+  }
+
+  // Each key's θ: ring determines which lap, spoke determines angle within lap
+  function nodeTheta(key) {
+    const spokeIdx = SEMI_TO_SPOKE[key.semi];
+    return key.ring * 2 * Math.PI + spokeIdx * (Math.PI / 6);
+  }
+
+  // Find extent of the spiral
+  let maxTheta = 0;
+  SPIRAL_KEYS.forEach(k => { const t = nodeTheta(k); if (t > maxTheta) maxTheta = t; });
+
+  let svg = `<svg viewBox="0 0 400 400" width="400" height="400" xmlns="http://www.w3.org/2000/svg">`;
+
+  // Layer 1: Continuous spiral path (the backbone — nodes sit on this curve)
+  const spiralColor = isDark ? 'rgba(106,80,160,0.18)' : 'rgba(106,80,160,0.12)';
+  const pathStart = -0.4;
+  const pathEnd = maxTheta + 0.5;
+  let spiralPath = '';
+  for (let t = pathStart; t <= pathEnd; t += 0.04) {
+    const { x, y } = spiralPos(t);
+    spiralPath += (t === pathStart ? 'M' : 'L') + x.toFixed(1) + ' ' + y.toFixed(1);
+  }
+  svg += `<path d="${spiralPath}" fill="none" stroke="${spiralColor}" stroke-width="2"/>`;
+
+  // Layer 2: Spoke highlight for selected key
+  const selectedSpoke = selectedRoot !== null ? SEMI_TO_SPOKE[ROOTS[selectedRoot].semi] : null;
+  if (selectedSpoke !== null) {
+    const spokeAngle = selectedSpoke * (Math.PI / 6) - Math.PI / 2;
+    const spokeNodes = SPIRAL_KEYS.filter(k => SEMI_TO_SPOKE[k.semi] === selectedSpoke);
+    const thetas = spokeNodes.map(k => nodeTheta(k)).sort((a, b) => a - b);
+    const rInner = Math.max(30, spiralPos(thetas[0]).r - 18);
+    const rOuter = spiralPos(thetas[thetas.length - 1]).r + 18;
+    svg += `<line x1="${(cx + rInner * Math.cos(spokeAngle)).toFixed(1)}" y1="${(cy + rInner * Math.sin(spokeAngle)).toFixed(1)}" x2="${(cx + rOuter * Math.cos(spokeAngle)).toFixed(1)}" y2="${(cy + rOuter * Math.sin(spokeAngle)).toFixed(1)}" stroke="${isDark ? '#6a50a0' : '#c5b8d8'}" stroke-width="1.5" opacity="0.4"/>`;
+  }
+
+  // Layer 3: Enharmonic connectors (dashed arcs between same-spoke nodes)
+  const spokeGroups = {};
+  SPIRAL_KEYS.forEach(key => {
+    const spoke = SEMI_TO_SPOKE[key.semi];
+    if (!spokeGroups[spoke]) spokeGroups[spoke] = [];
+    spokeGroups[spoke].push(key);
+  });
+  const connectorColor = isDark ? 'rgba(160,152,184,0.25)' : 'rgba(0,0,0,0.12)';
+  Object.values(spokeGroups).forEach(group => {
+    if (group.length < 2) return;
+    group.sort((a, b) => a.ring - b.ring);
+    for (let g = 0; g < group.length - 1; g++) {
+      const p1 = spiralPos(nodeTheta(group[g]));
+      const p2 = spiralPos(nodeTheta(group[g + 1]));
+      svg += `<line x1="${p1.x.toFixed(1)}" y1="${p1.y.toFixed(1)}" x2="${p2.x.toFixed(1)}" y2="${p2.y.toFixed(1)}" stroke="${connectorColor}" stroke-width="1" stroke-dasharray="3 3"/>`;
+    }
+  });
+
+  // Layer 4: Nodes (placed directly on the spiral curve)
+  SPIRAL_KEYS.forEach(key => {
+    const theta = nodeTheta(key);
+    const { x, y } = spiralPos(theta);
+    const { fill, textFill, strokeCol } = nodeColors(key.semi, isDark);
+    const isTheoretical = key.theoretical;
+    const prefFlat = key.acc < 0 ? '1' : '0';
+    const rootIdx = ROOTS.findIndex(r => r.semi === key.semi);
+    const nr = key.ring === 0 ? 14 : (key.ring === 1 ? 12 : 10);
+
+    svg += `<g class="cof-node${isTheoretical ? ' sof-theoretical' : ''}" data-cof-root="${rootIdx}" data-sof-prefer-flat="${prefFlat}">`;
+    svg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${nr}" fill="${fill}" stroke="${strokeCol}" stroke-width="1.5"${isTheoretical ? ' stroke-dasharray="4 2"' : ''}/>`;
+
+    const fontSize = key.ring === 0 ? 10 : (key.ring === 1 ? 8 : 7);
+    svg += `<text class="cof-label" x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="middle" font-size="${fontSize}" fill="${textFill}">${key.name}</text>`;
+
+    // Accidental count badge for outer-lap nodes
+    if (key.ring > 0) {
+      const accStr = key.acc > 0 ? key.acc + '\u266F' : Math.abs(key.acc) + '\u266D';
+      const badgeColor = isDark ? 'rgba(160,152,184,0.5)' : 'rgba(100,90,80,0.45)';
+      svg += `<text x="${x.toFixed(1)}" y="${(y + nr + 8).toFixed(1)}" text-anchor="middle" font-size="6" fill="${badgeColor}" font-family="'Nunito', sans-serif">${accStr}</text>`;
+    }
+
+    svg += '</g>';
+  });
+
+  svg += '</svg>';
+  container.innerHTML = `${fifthsToggleHTML()}<div class="cof-wrap sof-wrap">${svg}</div>`;
 }
 
 // ===== PICKERS =====
@@ -517,7 +645,7 @@ export function renderResult() {
   if (selectedRoot === null || selectedType === null) {
     area.innerHTML = '<div class="empty-state"><span class="arrow">\u2191</span>Pick a root note and chord type to get started</div>';
     renderProgressions();
-    renderCircleOfFifths();
+    renderFifths();
     return;
   }
 
@@ -658,7 +786,7 @@ export function renderResult() {
     // Only re-render these when the chord itself changed (not on inversion/instrument switch)
     if (chordChanged) {
       renderProgressions();
-      renderCircleOfFifths();
+      renderFifths();
     }
 
     if (chordChanged) {
@@ -731,14 +859,22 @@ export function toggleDark() {
   localStorage.setItem('theme', dark ? 'dark' : 'light');
   const btn = document.getElementById('theme-toggle');
   if (btn) btn.textContent = dark ? '\u2600\uFE0F' : '\uD83C\uDF19';
-  renderCircleOfFifths(); // re-render with correct colors
+  renderFifths(); // re-render with correct colors
 }
 
 // ===== COF CLICK =====
-export function cofClick(rootIdx) {
+export function cofClick(rootIdx, preferFlat) {
   selectedRoot = rootIdx;
   resetBlackKeyPills();
-  applyAccidentalForRoot(rootIdx);
+  if (preferFlat !== undefined) {
+    selectedAccidental = preferFlat;
+    const pill = document.getElementById('root-' + rootIdx);
+    if (pill && ROOTS[rootIdx].black) {
+      pill.classList.add(preferFlat ? 'prefer-flat' : 'prefer-sharp');
+    }
+  } else {
+    applyAccidentalForRoot(rootIdx);
+  }
   document.querySelectorAll('#root-picker .pill').forEach((p, i) => p.classList.toggle('active', i === rootIdx));
   if (selectedType === null) {
     selectedType = 0;

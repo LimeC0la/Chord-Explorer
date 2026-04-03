@@ -82,6 +82,61 @@ export const MINOR_DIATONIC = [
 // Circle of fifths order (indices into ROOTS: C, G, D, A, E, B, F#, Db, Ab, Eb, Bb, F)
 export const CIRCLE_OF_FIFTHS = [0, 7, 2, 9, 4, 11, 6, 1, 8, 3, 10, 5];
 
+// Spoke index for each semitone (maps semitone → position on the wheel)
+export const SEMI_TO_SPOKE = (() => {
+  const m = {};
+  CIRCLE_OF_FIFTHS.forEach((semi, i) => m[semi] = i);
+  return m;
+})();
+
+// All keys on the spiral of fifths — 3 laps expanding outward
+// Ring 0: standard 12 keys  |  Ring 1: enharmonic twins  |  Ring 2: double-sharp/double-flat
+export const SPIRAL_KEYS = [
+  // Ring 0 — standard circle of fifths (12 keys)
+  { name: 'C',  semi: 0,  acc: 0,   ring: 0, theoretical: false },
+  { name: 'G',  semi: 7,  acc: 1,   ring: 0, theoretical: false },
+  { name: 'D',  semi: 2,  acc: 2,   ring: 0, theoretical: false },
+  { name: 'A',  semi: 9,  acc: 3,   ring: 0, theoretical: false },
+  { name: 'E',  semi: 4,  acc: 4,   ring: 0, theoretical: false },
+  { name: 'B',  semi: 11, acc: 5,   ring: 0, theoretical: false },
+  { name: 'F\u266F', semi: 6,  acc: 6,   ring: 0, theoretical: false },
+  { name: 'D\u266D', semi: 1,  acc: -5,  ring: 0, theoretical: false },
+  { name: 'A\u266D', semi: 8,  acc: -4,  ring: 0, theoretical: false },
+  { name: 'E\u266D', semi: 3,  acc: -3,  ring: 0, theoretical: false },
+  { name: 'B\u266D', semi: 10, acc: -2,  ring: 0, theoretical: false },
+  { name: 'F',  semi: 5,  acc: -1,  ring: 0, theoretical: false },
+  // Ring 1 — enharmonic twins & single-accidental extensions (12 keys)
+  // Sharp arm (continuing clockwise from F♯)
+  { name: 'C\u266F',           semi: 1,  acc: 7,   ring: 1, theoretical: false, twinOf: 'D\u266D' },
+  { name: 'G\u266F',           semi: 8,  acc: 8,   ring: 1, theoretical: true,  twinOf: 'A\u266D' },
+  { name: 'D\u266F',           semi: 3,  acc: 9,   ring: 1, theoretical: true,  twinOf: 'E\u266D' },
+  { name: 'A\u266F',           semi: 10, acc: 10,  ring: 1, theoretical: true,  twinOf: 'B\u266D' },
+  { name: 'E\u266F',           semi: 5,  acc: 11,  ring: 1, theoretical: true,  twinOf: 'F' },
+  { name: 'B\u266F',           semi: 0,  acc: 12,  ring: 1, theoretical: true,  twinOf: 'C' },
+  // Flat arm (continuing counter-clockwise from D♭)
+  { name: 'G\u266D',           semi: 6,  acc: -6,  ring: 1, theoretical: false, twinOf: 'F\u266F' },
+  { name: 'C\u266D',           semi: 11, acc: -7,  ring: 1, theoretical: false, twinOf: 'B' },
+  { name: 'F\u266D',           semi: 4,  acc: -8,  ring: 1, theoretical: true,  twinOf: 'E' },
+  { name: 'B\u266D\u266D',     semi: 9,  acc: -9,  ring: 1, theoretical: true,  twinOf: 'A' },
+  { name: 'E\u266D\u266D',     semi: 2,  acc: -10, ring: 1, theoretical: true,  twinOf: 'D' },
+  { name: 'A\u266D\u266D',     semi: 7,  acc: -11, ring: 1, theoretical: true,  twinOf: 'G' },
+  // Ring 2 — double sharps (\u00D7) & double flats (11 keys)
+  // Sharp arm (continuing from B♯)
+  { name: 'F\u00D7',           semi: 7,  acc: 13,  ring: 2, theoretical: true,  twinOf: 'G' },
+  { name: 'C\u00D7',           semi: 2,  acc: 14,  ring: 2, theoretical: true,  twinOf: 'D' },
+  { name: 'G\u00D7',           semi: 9,  acc: 15,  ring: 2, theoretical: true,  twinOf: 'A' },
+  { name: 'D\u00D7',           semi: 4,  acc: 16,  ring: 2, theoretical: true,  twinOf: 'E' },
+  { name: 'A\u00D7',           semi: 11, acc: 17,  ring: 2, theoretical: true,  twinOf: 'B' },
+  { name: 'E\u00D7',           semi: 6,  acc: 18,  ring: 2, theoretical: true,  twinOf: 'F\u266F' },
+  { name: 'B\u00D7',           semi: 1,  acc: 19,  ring: 2, theoretical: true,  twinOf: 'D\u266D' },
+  // Spoke 8 omitted — would require triple accidentals (Pythagorean comma boundary)
+  // Flat arm (continuing from A♭♭)
+  { name: 'D\u266D\u266D',     semi: 0,  acc: -12, ring: 2, theoretical: true,  twinOf: 'C' },
+  { name: 'G\u266D\u266D',     semi: 5,  acc: -13, ring: 2, theoretical: true,  twinOf: 'F' },
+  { name: 'C\u266D\u266D',     semi: 10, acc: -14, ring: 2, theoretical: true,  twinOf: 'B\u266D' },
+  { name: 'F\u266D\u266D',     semi: 3,  acc: -15, ring: 2, theoretical: true,  twinOf: 'E\u266D' },
+];
+
 // ===== HELPERS =====
 export function useFlats(rootIdx, preferFlat) {
   // If an explicit preference is provided, use it

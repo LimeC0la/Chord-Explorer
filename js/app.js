@@ -4,10 +4,10 @@
 import {
   buildPickers, buildPresetButtons, buildSequencePicker,
   renderResult, renderProgressions,
-  renderCircleOfFifths, restoreFromURL, toggleDark, toggleSoundPanel,
+  renderFifths, restoreFromURL, toggleDark, toggleSoundPanel,
   setInstrument, applyPreset, onSoundChange, navigateToChord,
   selectRoot, selectType, selectInv, transpose, cofClick,
-  setProgMode, showLoadingIndicator, getSelectedRoot, getSelectedType, getSelectedAccidental
+  setProgMode, setFifthsMode, showLoadingIndicator, getSelectedRoot, getSelectedType, getSelectedAccidental
 } from './ui.js';
 
 import { ROOTS, SHARP_DISPLAY } from './music-theory.js';
@@ -52,7 +52,7 @@ restoreFromURL();
 
 // ---- Initial render if no URL state ----
 if (getSelectedRoot() === null) {
-  renderCircleOfFifths();
+  renderFifths();
   renderProgressions();
 }
 
@@ -248,10 +248,19 @@ document.addEventListener('click', function(e) {
     return;
   }
 
-  // Circle of fifths node
+  // Circle/Spiral mode toggle
+  const cofModeBtn = e.target.closest('[data-cof-mode]');
+  if (cofModeBtn) {
+    setFifthsMode(cofModeBtn.dataset.cofMode);
+    return;
+  }
+
+  // Circle/Spiral of fifths node
   const cofNode = e.target.closest('[data-cof-root]');
   if (cofNode) {
-    cofClick(parseInt(cofNode.dataset.cofRoot));
+    const prefFlatAttr = cofNode.dataset.sofPreferFlat;
+    const preferFlat = prefFlatAttr !== undefined ? prefFlatAttr === '1' : undefined;
+    cofClick(parseInt(cofNode.dataset.cofRoot), preferFlat);
     return;
   }
 
